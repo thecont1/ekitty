@@ -34,15 +34,15 @@ type PortfolioDrawerProps = {
   uploadNotice: { kind: "error" | "success"; message: string } | null;
   hasDates: boolean;
   onRestore: () => void;
-  kittyCount: number;
-  lotCount: number;
+  visibleKittyCount: number;
+  loadedLotCount: number;
 };
 
 export default function PortfolioDrawer({
   open, onOpenChange, viewMode, setViewMode, colorMetric, setColorMetric, taxFilter,
   setTaxFilter, showEtfs, setShowEtfs, darkMode,
   setDarkMode, etfLotCount, frozen, setFrozen, repulsion, setRepulsion, onImportFile,
-  uploadNotice, hasDates, onRestore, kittyCount, lotCount,
+  uploadNotice, hasDates, onRestore, visibleKittyCount, loadedLotCount,
 }: PortfolioDrawerProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -63,7 +63,7 @@ export default function PortfolioDrawer({
           <section><p className="control-label">Tax-loss lens</p><div className="mt-3 grid grid-cols-3 rounded-xl border border-stone-200 bg-white p-1">{([ ["all", "All"], ["highlight", "Mark"], ["isolate", "Only"] ] as const).map(([filter, label]) => <button key={filter} type="button" onClick={() => setTaxFilter(filter)} className={taxFilter === filter ? "rounded-lg bg-[#D8AE37] px-1 py-2.5 font-mono text-[10px] text-stone-900 shadow-sm" : "rounded-lg px-1 py-2.5 font-mono text-[10px] text-stone-500 transition hover:text-stone-900"}>{label}</button>)}</div><p className="mt-2 font-mono text-[9px] leading-4 text-stone-400">Gold rings flag loss lots dated 330+ days ago.</p></section>
           <section><div className="flex items-center justify-between"><p className="control-label">Field motion</p><button type="button" onClick={() => setFrozen((current) => !current)} className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 bg-white px-2.5 py-1.5 font-mono text-[9px] uppercase tracking-[.11em] text-stone-600 transition hover:border-stone-400">{frozen ? <Play size={11} /> : <Pause size={11} />}{frozen ? "Resume" : "Freeze"}</button></div><div className="mt-4 flex items-center gap-3"><span className="font-mono text-[10px] text-stone-500">Soft</span><input aria-label="Repulsion strength" type="range" min="0.2" max="1" step="0.05" value={repulsion} onChange={(event) => setRepulsion(Number(event.target.value))} className="kitty-range flex-1" /><span className="font-mono text-[10px] text-stone-500">Spacious</span></div></section>
           <section><p className="control-label">Portfolio CSV</p><label className="mt-3 flex cursor-pointer items-center justify-between rounded-xl border border-dashed border-stone-300 bg-white px-4 py-4 transition hover:border-stone-500 hover:bg-stone-50" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); onImportFile(event.dataTransfer.files[0]); }}><span><span className="block font-mono text-[10px] uppercase tracking-[.12em] text-stone-700">Import or drop a file</span><span className="mt-1 block font-mono text-[9px] text-stone-400">company · buy_qty · avg_price · current_price · txn_date</span></span><FileUp size={18} className="text-stone-500" /><input type="file" accept=".csv,text/csv" className="sr-only" onChange={(event) => onImportFile(event.target.files?.[0])} /></label>{uploadNotice && <p className={uploadNotice.kind === "error" ? "mt-2 font-mono text-[9px] leading-4 text-[#ff3b3b]" : "mt-2 font-mono text-[9px] leading-4 text-emerald-700"}>{uploadNotice.message}</p>}{!hasDates && <p className="mt-2 font-mono text-[9px] leading-4 text-stone-400">Import dated lots to activate literal month placement and year badges.</p>}<button type="button" onClick={onRestore} className="mt-3 inline-flex items-center gap-2 font-mono text-[10px] text-stone-500 transition hover:text-stone-900"><RotateCcw size={12} /> Restore included field</button></section>
-          <section className="border-t border-stone-200 pt-5"><div className="flex items-center justify-between font-mono text-[10px]"><span className="text-stone-400">Showing</span><span className="text-stone-700">{kittyCount} kitties · {lotCount} lots</span></div><div className="mt-2 flex items-center gap-1.5 font-mono text-[9px] text-stone-400"><Eye size={11} /> In Transactions, each vertical blue strip is one month.</div></section>
+          <section className="border-t border-stone-200 pt-5"><div className="flex items-center justify-between font-mono text-[10px]"><span className="text-stone-400">Canvas</span><span className="text-stone-700">{visibleKittyCount} kitties · {loadedLotCount} total lots</span></div>{viewMode === "transactions" && visibleKittyCount !== loadedLotCount && <p className="mt-2 font-mono text-[9px] leading-4 text-stone-400">{loadedLotCount - visibleKittyCount} lots are in months outside this 24-month window; pan horizontally to reach them.</p>}<div className="mt-2 flex items-center gap-1.5 font-mono text-[9px] text-stone-400"><Eye size={11} /> In Transactions, each vertical blue strip is one month.</div></section>
         </div>
       </SheetContent>
     </Sheet>

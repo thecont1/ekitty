@@ -58,3 +58,4 @@
 - [x] Reduce vertical cat bunching using the expanded field space.
 - [x] Remove the horizontal drag spring-back while retaining smooth timeline movement.
 - [x] Diagnose and restore red rendering for loss-making kitty transactions.
+- [x] Reconcile the displayed transaction kitty count with the 185 source lots and clarify visible-window counts.
