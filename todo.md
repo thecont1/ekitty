@@ -44,3 +44,5 @@
 - [x] Move reset under the hamburger at matching 48px dimensions and center search independently.
 - [x] Validate reset recovery and control placement.
 - [x] Substantially widen vertical lane freedom and separation within every month strip.
+- [x] Restore conventional profit-green and loss-red kitty pigments.
+- [x] Validate the restored palette in the transaction field.

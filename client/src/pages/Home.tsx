@@ -65,16 +65,16 @@ function percentileRanks(points: PortfolioPoint[], metric: ColorMetric) {
 function treatmentFor(point: PortfolioPoint, percentile: number): FillTreatment {
   if (Math.abs(point.pnl) < 50 || percentile < 2) return { fill: "transparent", ink: "#8da0a9", fillOpacity: 0, segment: "<p2", neutral: true };
   if (percentile <= 5) {
-    const target = point.pnl >= 0 ? LOSS_RED : GAIN_GREEN;
-    const pale = point.pnl >= 0 ? "#fff1f1" : "#effaf4";
+    const target = point.pnl >= 0 ? GAIN_GREEN : LOSS_RED;
+    const pale = point.pnl >= 0 ? "#effaf4" : "#fff1f1";
     return { fill: mixHex(pale, target, 0.12), ink: mixHex("#8da0a9", target, 0.18), fillOpacity: 0.12, segment: "p5", neutral: false };
   }
   const stops = [5, 10, 25, 50, 75, 90, 95, 98];
   const stopIndex = stops.findIndex((stop) => percentile <= stop);
   const intensity = clamp((stopIndex + 2) / (stops.length + 1), 0.2, 1);
   const positive = point.pnl >= 0;
-  const target = positive ? LOSS_RED : GAIN_GREEN;
-  const pale = positive ? "#fff1f1" : "#effaf4";
+  const target = positive ? GAIN_GREEN : LOSS_RED;
+  const pale = positive ? "#effaf4" : "#fff1f1";
   return {
     fill: mixHex(pale, target, intensity),
     ink: mixHex("#87969b", target, 0.45 + intensity * 0.55),
