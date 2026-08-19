@@ -59,3 +59,6 @@
 - [x] Remove the horizontal drag spring-back while retaining smooth timeline movement.
 - [x] Diagnose and restore red rendering for loss-making kitty transactions.
 - [x] Reconcile the displayed transaction kitty count with the 185 source lots and clarify visible-window counts.
+- [x] Restore visible transaction lots when panning the canvas to April 2024–March 2026.
+- [x] Supersede regular page scrolling with the requested two-dimensional workspace navigation.
+- [x] Replace one-axis timeline navigation with a two-dimensional pan workspace: history extends left and lower P&L territory extends downward.
