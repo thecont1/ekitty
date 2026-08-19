@@ -20,7 +20,7 @@ import {
 } from "@/lib/portfolio";
 import { AnimatePresence, motion } from "framer-motion";
 import { gsap } from "gsap";
-import { ChevronDown, Eye, FileUp, Menu, Pause, Play, RotateCcw, Sparkles, X } from "lucide-react";
+import { ChevronDown, Eye, FileUp, Maximize2, Menu, Minimize2, Pause, Play, RotateCcw, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type ViewMode = "holdings" | "transactions";
@@ -167,13 +167,15 @@ export default function Home() {
   const [timelineGesture, setTimelineGesture] = useState<TimelineGesture>("idle");
   const [timelinePanOffset, setTimelinePanOffset] = useState(0);
   const [canvasPanY, setCanvasPanY] = useState(0);
+  const [isWorldFit, setIsWorldFit] = useState(false);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0, visible: false });
   const [dataUpdatedAt, setDataUpdatedAt] = useState<string | null>(null);
   const [, repaint] = useState(0);
   const nodes = useRef<Record<string, SimNode>>({});
   const frame = useRef<number | null>(null);
   const timelineScroller = useRef<HTMLDivElement | null>(null);
   const horizontalDrag = useRef<TimelineDrag | null>(null);
-  const camera = useRef({ x: 0, y: 0 });
+  const camera = useRef({ x: 0, y: 0, scale: 1 });
   const gridWorld = useRef<HTMLDivElement | null>(null);
   const kittyWorld = useRef<HTMLElement | null>(null);
   const datelineWorld = useRef<HTMLDivElement | null>(null);
@@ -197,13 +199,14 @@ export default function Home() {
   const transactionWindowPoints = filteredTransactionPoints;
   const fieldPoints = useMemo(() => viewMode === "transactions" ? transactionWindowPoints : filteredPoints, [filteredPoints, transactionWindowPoints, viewMode]);
   const transactionStripWidth = sceneSize.width / Math.max(monthMaximum, 1);
-  const virtualCanvasWidth = viewMode === "transactions" ? Math.max(sceneSize.width, timeline.months.length * transactionStripWidth) : sceneSize.width;
-  const virtualCanvasHeight = viewMode === "transactions" ? Math.max(1_560, sceneSize.height * 2.25) : sceneSize.height;
+  const virtualCanvasWidth = viewMode === "transactions" ? Math.max(sceneSize.width, timeline.months.length * transactionStripWidth) : Math.max(sceneSize.width * 1.4, 1_500);
+  const virtualCanvasHeight = viewMode === "transactions" ? Math.max(1_560, sceneSize.height * 2.25) : Math.max(1_320, sceneSize.height * 1.85);
   const minCanvasPanX = Math.min(0, sceneSize.width - virtualCanvasWidth);
   const minCanvasPanY = Math.min(0, sceneSize.height - virtualCanvasHeight);
-  const physicsWidth = viewMode === "transactions" ? virtualCanvasWidth : sceneSize.width;
-  const transactionLayoutHeight = viewMode === "transactions" ? virtualCanvasHeight : sceneSize.height;
+  const physicsWidth = virtualCanvasWidth;
+  const transactionLayoutHeight = virtualCanvasHeight;
   const pnlScaleMargin = sceneSize.width < 640 ? 66 : 84;
+  const topKittyMargin = 54;
   const pnlBound = useMemo(() => Math.max(5_000, Math.ceil(Math.max(1, ...fieldPoints.map((point) => Math.abs(point.pnl))) / 5_000) * 5_000), [fieldPoints]);
   const pnlTicks = useMemo(() => Array.from({ length: (pnlBound / 5_000) * 2 + 1 }, (_, index) => -pnlBound + index * 5_000), [pnlBound]);
   const pnlPosition = useMemo(() => {
@@ -212,23 +215,25 @@ export default function Home() {
   }, [fieldPoints]);
   const rankings = useMemo(() => percentileRanks(fieldPoints, colorMetric), [colorMetric, fieldPoints]);
 
-  const setCameraTransform = useCallback((x: number, y: number) => {
+  const setCameraTransform = useCallback((x: number, y: number, scale = 1) => {
     camera.current.x = x;
     camera.current.y = y;
-    if (gridWorld.current) gsap.set(gridWorld.current, { x, y, force3D: true });
-    if (kittyWorld.current) gsap.set(kittyWorld.current, { x, y, force3D: true });
-    if (datelineWorld.current) gsap.set(datelineWorld.current, { x, force3D: true });
+    camera.current.scale = scale;
+    if (gridWorld.current) gsap.set(gridWorld.current, { x, y, scale, transformOrigin: "left top", force3D: true });
+    if (kittyWorld.current) gsap.set(kittyWorld.current, { x, y, scale, transformOrigin: "left top", force3D: true });
+    if (datelineWorld.current) gsap.set(datelineWorld.current, { x, scale, transformOrigin: "left top", force3D: true });
   }, []);
 
-  const settleCamera = useCallback((x: number, y: number, duration = 0.28) => {
+  const settleCamera = useCallback((x: number, y: number, duration = 0.28, scale = 1) => {
     cameraTween.current?.kill();
     cameraTween.current = gsap.to(camera.current, {
       x,
       y,
+      scale,
       duration,
-      ease: "power3.out",
+      ease: "power4.out",
       overwrite: "auto",
-      onUpdate: () => setCameraTransform(camera.current.x, camera.current.y),
+      onUpdate: () => setCameraTransform(camera.current.x, camera.current.y, camera.current.scale),
       onComplete: () => {
         setTimelinePanOffset(x);
         setCanvasPanY(y);
@@ -272,17 +277,34 @@ export default function Home() {
     setFrozen(false);
     setTimelineGesture("idle");
     // The world origin for the default transaction view is the latest month at top-right.
-    settleCamera(minCanvasPanX, 0, 0.42);
+    setIsWorldFit(false);
+    settleCamera(minCanvasPanX, 0, 0.62, 1);
     Object.values(nodes.current).forEach((node) => { node.vx = 0; node.vy = 0; });
     repaint((value) => (value + 1) % 10_000);
   }, [minCanvasPanX, monthMaximum, settleCamera, timeline.months.length]);
 
+  const toggleWorldFit = useCallback(() => {
+    if (isWorldFit) {
+      setIsWorldFit(false);
+      settleCamera(minCanvasPanX, 0, 0.46, 1);
+      return;
+    }
+    const availableWidth = Math.max(200, sceneSize.width - 28);
+    const availableHeight = Math.max(200, sceneSize.height - 60);
+    const scale = Math.min(1, availableWidth / virtualCanvasWidth, availableHeight / virtualCanvasHeight);
+    setIsWorldFit(true);
+    settleCamera((sceneSize.width - virtualCanvasWidth * scale) / 2, Math.max(42, (sceneSize.height - virtualCanvasHeight * scale) / 2), 0.54, scale);
+  }, [isWorldFit, minCanvasPanX, sceneSize.height, sceneSize.width, settleCamera, virtualCanvasHeight, virtualCanvasWidth]);
+
   const beginTimelineDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
-    if (viewMode !== "transactions") return;
+    if (isWorldFit) {
+      setIsWorldFit(false);
+      setCameraTransform(minCanvasPanX, 0);
+    }
     cameraTween.current?.kill();
     horizontalDrag.current = { startX: event.clientX, startY: event.clientY, startPanX: camera.current.x, startPanY: camera.current.y, pointerId: event.pointerId, gesture: "idle" };
     event.currentTarget.setPointerCapture(event.pointerId);
-  }, [viewMode]);
+  }, [isWorldFit, minCanvasPanX, setCameraTransform]);
 
   const moveTimelineDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
     const drag = horizontalDrag.current;
@@ -306,7 +328,6 @@ export default function Home() {
   }, []);
 
   const scrollTimeline = useCallback((event: React.WheelEvent<HTMLElement>) => {
-    if (viewMode !== "transactions") return;
     if (!event.deltaX && !event.deltaY) return;
     event.preventDefault();
     const nextX = clamp(camera.current.x - event.deltaX, minCanvasPanX, 0);
@@ -314,7 +335,7 @@ export default function Home() {
     setCameraTransform(nextX, nextY);
     setTimelinePanOffset(nextX);
     setCanvasPanY(nextY);
-  }, [minCanvasPanX, minCanvasPanY, setCameraTransform, viewMode]);
+  }, [minCanvasPanX, minCanvasPanY, setCameraTransform]);
 
   useEffect(() => {
     const updateSize = () => setSceneSize({ width: window.innerWidth, height: window.innerHeight });
@@ -325,12 +346,6 @@ export default function Home() {
 
   useEffect(() => {
     cameraTween.current?.kill();
-    if (viewMode !== "transactions") {
-      setCameraTransform(0, 0);
-      setTimelinePanOffset(0);
-      setCanvasPanY(0);
-      return;
-    }
     setCameraTransform(minCanvasPanX, 0);
     setTimelinePanOffset(minCanvasPanX);
     setCanvasPanY(0);
@@ -406,11 +421,11 @@ export default function Home() {
             const verticalMargin = Math.max(pnlScaleMargin, Math.min(94, size * 0.4));
             const pnlRatio = pnlPosition[point.id] ?? 0.5;
             const laneJitter = (((seed >>> 18) % 100) / 100 - 0.5) * Math.min(12, stripWidth * 0.12);
-            anchorY = verticalMargin + (1 - pnlRatio) * (transactionLayoutHeight - verticalMargin * 2) + laneJitter;
+            anchorY = Math.max(topKittyMargin + size * 0.62, verticalMargin + (1 - pnlRatio) * (transactionLayoutHeight - verticalMargin * 2) + laneJitter);
             pull = 0.0055;
           } else {
             anchorX = physicsWidth * (0.08 + ((seed % 840) / 1000));
-            anchorY = sceneSize.height * (0.11 + (((seed >>> 9) % 710) / 1000));
+            anchorY = topKittyMargin + size * 0.62 + (transactionLayoutHeight - topKittyMargin - size * 1.24) * (0.11 + (((seed >>> 9) % 710) / 1000));
             pull = 0.00048;
           }
           node.vx += (anchorX - node.x) * pull * delta;
@@ -424,7 +439,8 @@ export default function Home() {
         nodeList.forEach(({ node, size, point }) => {
           const margin = Math.max(42, size * 0.62);
           node.vx += (node.x < margin ? margin - node.x : node.x > physicsWidth - margin ? physicsWidth - margin - node.x : 0) * 0.008;
-          node.vy += (node.y < margin ? margin - node.y : node.y > sceneSize.height - margin ? sceneSize.height - margin - node.y : 0) * 0.008;
+          const topBoundary = Math.max(topKittyMargin + size * 0.62, margin);
+          node.vy += (node.y < topBoundary ? topBoundary - node.y : node.y > transactionLayoutHeight - margin ? transactionLayoutHeight - margin - node.y : 0) * 0.008;
           node.vx *= 0.91; node.vy *= 0.91; node.x += node.vx * delta; node.y += node.vy * delta;
           if (viewMode === "transactions") {
             const stripWidth = transactionStripWidth;
@@ -437,7 +453,7 @@ export default function Home() {
             const pnlRatio = pnlPosition[point.id] ?? 0.5;
             const laneY = verticalMargin + (1 - pnlRatio) * (transactionLayoutHeight - verticalMargin * 2);
             const laneFreedom = Math.max(68, Math.min(180, size * 0.78));
-            node.y = clamp(node.y, laneY - laneFreedom, laneY + laneFreedom);
+            node.y = clamp(node.y, Math.max(topKittyMargin + size * 0.62, laneY - laneFreedom), laneY + laneFreedom);
           }
         });
         repaint((value) => (value + 1) % 10_000);
@@ -446,7 +462,7 @@ export default function Home() {
     };
     frame.current = requestAnimationFrame(tick);
     return () => { if (frame.current) cancelAnimationFrame(frame.current); };
-  }, [frozen, physicsWidth, pnlPosition, pnlScaleMargin, repulsion, sceneSize, selectedId, timeline, timelineGesture, transactionLayoutHeight, transactionStripWidth, viewMode, virtualCanvasWidth, visiblePoints]);
+  }, [frozen, physicsWidth, pnlPosition, pnlScaleMargin, repulsion, sceneSize, selectedId, timeline, timelineGesture, topKittyMargin, transactionLayoutHeight, transactionStripWidth, viewMode, virtualCanvasWidth, visiblePoints]);
 
   const importFile = useCallback((file?: File) => {
     if (!file) return;
