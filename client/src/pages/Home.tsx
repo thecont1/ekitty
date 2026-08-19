@@ -31,7 +31,7 @@ type VisiblePoint = { point: PortfolioPoint; size: number; stroke: number; treat
 type Timeline = { months: number[]; indexFor: Record<string, number>; hasDates: boolean };
 type HorizontalDrag = { startX: number; startLeft: number; pointerId: number };
 
-const PORTFOLIO_CSV_URL = "/manus-storage/Portfolio Holdings Transactions_26d29a27.csv";
+const PORTFOLIO_CSV_URL = "/manus-storage/PortfolioHoldingsTransactions_a72d31dd.csv";
 const LOSS_RED = "#ff3b3b";
 const GAIN_GREEN = "#17885b";
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));

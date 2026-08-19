@@ -22,3 +22,6 @@
 - [x] Make every transaction month reachable through the time-window navigation.
 - [x] Repair same-stock focus, tighten p02/p05 pigment behavior, and move copyright to bottom-centre.
 - [x] Validate data coverage and corrected interactions.
+- [x] Inspect the uploaded source-of-truth CSV and reconcile Ultratech Cement dates.
+- [x] Publish the uploaded CSV and replace the live data reference.
+- [x] Verify the corrected live records and transaction placement.
