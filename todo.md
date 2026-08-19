@@ -37,3 +37,6 @@
 - [x] Correct profit/loss pigment direction and expand the largest investment cat size.
 - [x] Add viewport reset and reposition the compact bottom-centre search control.
 - [x] Validate the refined transaction field.
+- [x] Remove the visible P&L y-axis while retaining quiet horizontal reference lines.
+- [x] Increase vertical freedom and collision spacing within each month strip.
+- [x] Validate the fuller kitty field at desktop and mobile sizes.
