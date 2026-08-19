@@ -185,6 +185,10 @@ export default function Home() {
   const pnlScaleMargin = sceneSize.width < 640 ? 66 : 84;
   const pnlBound = useMemo(() => Math.max(5_000, Math.ceil(Math.max(1, ...fieldPoints.map((point) => Math.abs(point.pnl))) / 5_000) * 5_000), [fieldPoints]);
   const pnlTicks = useMemo(() => Array.from({ length: (pnlBound / 5_000) * 2 + 1 }, (_, index) => -pnlBound + index * 5_000), [pnlBound]);
+  const pnlPosition = useMemo(() => {
+    const sorted = [...fieldPoints].sort((left, right) => left.pnl - right.pnl);
+    return Object.fromEntries(sorted.map((point, index) => [point.id, sorted.length <= 1 ? 0.5 : index / (sorted.length - 1)]));
+  }, [fieldPoints]);
   const rankings = useMemo(() => percentileRanks(fieldPoints, colorMetric), [colorMetric, fieldPoints]);
 
   const visiblePoints = useMemo<VisiblePoint[]>(() => {
@@ -214,7 +218,9 @@ export default function Home() {
     setTaxFilter("all");
     setHoveredId(null);
     setSelectedId(null);
-    nodes.current = {};
+    setFrozen(false);
+    Object.values(nodes.current).forEach((node) => { node.vx = 0; node.vy = 0; });
+    repaint((value) => (value + 1) % 10_000);
   }, [monthMaximum]);
 
   const beginTimelineDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
@@ -308,8 +314,8 @@ export default function Home() {
             const stripWidth = sceneSize.width / effectiveMonthCount;
             const monthIndex = (timeline.indexFor[point.id] ?? seed % timeline.months.length) - monthWindowStart;
             anchorX = (monthIndex + 0.5) * stripWidth + (((seed >>> 10) % 100) / 100 - 0.5) * stripWidth * 0.42;
-            const verticalMargin = Math.max(pnlScaleMargin, Math.min(96, size * 0.52));
-            const pnlRatio = clamp((point.pnl + pnlBound) / (pnlBound * 2), 0, 1);
+            const verticalMargin = Math.max(pnlScaleMargin, Math.min(94, size * 0.4));
+            const pnlRatio = pnlPosition[point.id] ?? 0.5;
             const laneJitter = (((seed >>> 18) % 100) / 100 - 0.5) * Math.min(12, stripWidth * 0.12);
             anchorY = verticalMargin + (1 - pnlRatio) * (sceneSize.height - verticalMargin * 2) + laneJitter;
             pull = 0.008;
@@ -338,10 +344,10 @@ export default function Home() {
             node.x = clamp(node.x, monthIndex * stripWidth + edge, (monthIndex + 1) * stripWidth - edge);
             if (monthIndex === 0) node.x = Math.max(node.x, size * 0.42);
             if (monthIndex === effectiveMonthCount - 1) node.x = Math.min(node.x, sceneSize.width - size * 0.42);
-            const verticalMargin = Math.max(pnlScaleMargin, Math.min(96, size * 0.52));
-            const pnlRatio = clamp((point.pnl + pnlBound) / (pnlBound * 2), 0, 1);
+            const verticalMargin = Math.max(pnlScaleMargin, Math.min(94, size * 0.4));
+            const pnlRatio = pnlPosition[point.id] ?? 0.5;
             const laneY = verticalMargin + (1 - pnlRatio) * (sceneSize.height - verticalMargin * 2);
-            const laneFreedom = Math.max(42, Math.min(120, size * 0.68));
+            const laneFreedom = Math.max(38, Math.min(94, size * 0.5));
             node.y = clamp(node.y, laneY - laneFreedom, laneY + laneFreedom);
           }
         });
@@ -351,7 +357,7 @@ export default function Home() {
     };
     frame.current = requestAnimationFrame(tick);
     return () => { if (frame.current) cancelAnimationFrame(frame.current); };
-  }, [effectiveMonthCount, frozen, monthWindowStart, physicsWidth, pnlBound, pnlScaleMargin, repulsion, sceneSize, selectedId, timeline, viewMode, visiblePoints]);
+  }, [effectiveMonthCount, frozen, monthWindowStart, physicsWidth, pnlPosition, pnlScaleMargin, repulsion, sceneSize, selectedId, timeline, viewMode, visiblePoints]);
 
   const importFile = useCallback((file?: File) => {
     if (!file) return;
@@ -368,8 +374,9 @@ export default function Home() {
 
   return (
     <main className={darkMode ? "dark relative h-[100dvh] w-screen overflow-hidden bg-[#101617] text-stone-100" : "relative h-[100dvh] w-screen overflow-hidden bg-white text-stone-900"}>
-      {viewMode === "transactions" && <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">{pnlTicks.map((tick) => { const ratio = (tick + pnlBound) / (pnlBound * 2); return <div key={`grid-${tick}`} className={darkMode ? "absolute left-0 right-0 border-t border-[#20353b]/45" : "absolute left-0 right-0 border-t border-[#dbeef8]/55"} style={{ top: pnlScaleMargin + (1 - ratio) * (sceneSize.height - pnlScaleMargin * 2) }} />; })}{timeline.months.slice(monthWindowStart).map((month, index) => <div key={month} className={darkMode ? "absolute bottom-0 top-0 border-l border-[#284149]/65" : "absolute bottom-0 top-0 border-l border-[#edf7ff]/70"} style={{ left: index * (sceneSize.width / effectiveMonthCount) }}>{index % 3 === 0 && <span className={darkMode ? "absolute left-1 top-3 hidden font-mono text-[8px] tracking-[.12em] text-[#77949e] md:block" : "absolute left-1 top-3 hidden font-mono text-[8px] tracking-[.12em] text-[#c3dff5] md:block"}>{labelMonth(month)}</span>}</div>)}{elapsedYearGuides.map((guide) => { const index = timeline.months.indexOf(guide.serial) - monthWindowStart; return <div key={`year-${guide.years}`} className="absolute bottom-0 top-0 w-[3px] bg-[#70b9e8] shadow-[0_0_0_1px_rgba(112,185,232,.14)]" style={{ left: index * (sceneSize.width / effectiveMonthCount) }}><span className="absolute left-1 top-8 whitespace-nowrap font-mono text-[8px] tracking-[.12em] text-[#4096cf]">{guide.years}y</span></div>; })}</div>}
-      <div className="fixed bottom-11 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2"><button type="button" aria-label="Reset portfolio field" onPointerDown={(event) => event.stopPropagation()} onClick={resetViewport} className={darkMode ? "grid h-7 w-7 place-items-center rounded-full border border-[#49636a] bg-[#142022] text-stone-300 shadow-[0_6px_18px_-12px_rgba(0,0,0,.8)] transition hover:border-[#D8AE37] hover:text-[#D8AE37]" : "grid h-7 w-7 place-items-center rounded-full border border-stone-300 bg-white text-stone-500 shadow-[0_6px_18px_-12px_rgba(41,37,36,.28)] transition hover:border-[#D8AE37] hover:text-[#a87c12]"}><RotateCcw size={12} /></button><input aria-label="Find a company" value={companyQuery} onChange={(event) => setCompanyQuery(event.target.value)} onPointerDown={(event) => event.stopPropagation()} className={darkMode ? "w-[min(348px,calc(100vw-118px))] rounded-full border border-[#49636a] bg-[#142022] px-4 py-1.5 font-mono text-[9px] text-stone-100 shadow-[0_6px_18px_-12px_rgba(0,0,0,.8)] outline-none placeholder:text-stone-400 focus:border-[#D8AE37]" : "w-[min(348px,calc(100vw-118px))] rounded-full border border-stone-300 bg-white px-4 py-1.5 font-mono text-[9px] text-stone-700 shadow-[0_6px_18px_-12px_rgba(41,37,36,.28)] outline-none placeholder:text-stone-500 focus:border-[#D8AE37]"} placeholder="look what the cat brought in" /></div>
+      {viewMode === "transactions" && <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">{pnlTicks.map((tick) => { const ratio = (tick + pnlBound) / (pnlBound * 2); return <div key={`grid-${tick}`} className={darkMode ? "absolute left-0 right-0 border-t border-[#20353b]/28" : "absolute left-0 right-0 border-t border-[#dbeef8]/34"} style={{ top: pnlScaleMargin + (1 - ratio) * (sceneSize.height - pnlScaleMargin * 2) }} />; })}{timeline.months.slice(monthWindowStart).map((month, index) => <div key={month} className={darkMode ? "absolute bottom-0 top-0 border-l border-[#284149]/42" : "absolute bottom-0 top-0 border-l border-[#edf7ff]/46"} style={{ left: index * (sceneSize.width / effectiveMonthCount) }}>{index % 3 === 0 && <span className={darkMode ? "absolute left-1 top-3 hidden font-mono text-[8px] tracking-[.12em] text-[#77949e] md:block" : "absolute left-1 top-3 hidden font-mono text-[8px] tracking-[.12em] text-[#c3dff5] md:block"}>{labelMonth(month)}</span>}</div>)}{elapsedYearGuides.map((guide) => { const index = timeline.months.indexOf(guide.serial) - monthWindowStart; return <div key={`year-${guide.years}`} className="absolute bottom-0 top-0 w-[3px] bg-[#70b9e8] shadow-[0_0_0_1px_rgba(112,185,232,.14)]" style={{ left: index * (sceneSize.width / effectiveMonthCount) }}><span className="absolute left-1 top-8 whitespace-nowrap font-mono text-[8px] tracking-[.12em] text-[#4096cf]">{guide.years}y</span></div>; })}</div>}
+      <button type="button" aria-label="Reset portfolio field" onPointerDown={(event) => event.stopPropagation()} onClick={resetViewport} className={darkMode ? "fixed right-5 top-[8.5rem] z-40 grid h-12 w-12 place-items-center rounded-full border border-[#49636a] bg-[#142022] text-stone-300 shadow-[0_10px_30px_-16px_rgba(0,0,0,.72)] transition hover:-translate-y-0.5 hover:border-[#D8AE37] hover:text-[#D8AE37] active:scale-95" : "fixed right-5 top-[8.5rem] z-40 grid h-12 w-12 place-items-center rounded-full border border-stone-200 bg-white text-stone-500 shadow-[0_10px_30px_-16px_rgba(41,37,36,.45)] transition hover:-translate-y-0.5 hover:border-[#D8AE37] hover:text-[#a87c12] active:scale-95"}><RotateCcw size={17} /></button>
+      <div className="fixed bottom-11 left-1/2 z-40 -translate-x-1/2"><input aria-label="Find a company" value={companyQuery} onChange={(event) => setCompanyQuery(event.target.value)} onPointerDown={(event) => event.stopPropagation()} className={darkMode ? "w-[min(348px,calc(100vw-32px))] rounded-full border border-[#49636a] bg-[#142022] px-4 py-1.5 font-mono text-[9px] text-stone-100 shadow-[0_6px_18px_-12px_rgba(0,0,0,.8)] outline-none placeholder:text-stone-400 focus:border-[#D8AE37]" : "w-[min(348px,calc(100vw-32px))] rounded-full border border-stone-300 bg-white px-4 py-1.5 font-mono text-[9px] text-stone-700 shadow-[0_6px_18px_-12px_rgba(41,37,36,.28)] outline-none placeholder:text-stone-500 focus:border-[#D8AE37]"} placeholder="look what the cat brought in" /></div>
       <section aria-label="Portfolio kitty field" className="absolute inset-0 z-10 touch-pan-y" onWheel={scrollTimeline} onPointerDown={beginTimelineDrag} onPointerMove={moveTimelineDrag} onPointerUp={endTimelineDrag} onPointerCancel={endTimelineDrag}>
         {visiblePoints.map((entry) => {
           const node = nodes.current[entry.point.id]; if (!node) return null;

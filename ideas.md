@@ -71,3 +71,4 @@ The mark is a charcoal continuous-line cat whose back and tail imply a rising ma
 - Kitty glyphs are treated as hand-drawn ink information marks rather than mascot stickers; each record carries deliberate variations in lean, ears, tail arc, and whiskers.
 - The physics field uses a low-density asymmetrical constellation with a few dominant financial entities and wide areas of clean white canvas.
 - Catkin Gold #D8AE37 is reserved for tax-sensitive collars, focused rings, and key emphasis; it is never used as generic ornament.
+- Transaction reference marks remain deliberately quiet: the month strips and horizontal guides support orientation, while the full-height kitty field remains the primary visual system.

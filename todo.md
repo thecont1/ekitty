@@ -40,3 +40,7 @@
 - [x] Remove the visible P&L y-axis while retaining quiet horizontal reference lines.
 - [x] Increase vertical freedom and collision spacing within each month strip.
 - [x] Validate the fuller kitty field at desktop and mobile sizes.
+- [x] Repair reset state so all transaction kitties return to the field.
+- [x] Move reset under the hamburger at matching 48px dimensions and center search independently.
+- [x] Validate reset recovery and control placement.
+- [x] Substantially widen vertical lane freedom and separation within every month strip.
