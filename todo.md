@@ -14,3 +14,4 @@
 - [x] Refresh the live data source and correct the transaction time-axis range.
 - [x] Add a light/dark mode switch and lower the hamburger below the month labels.
 - [x] Validate the corrected transaction placement and appearance controls.
+- [x] Add and verify the linked Mahesh Shantaram / thecontrarian.in copyright notice.
