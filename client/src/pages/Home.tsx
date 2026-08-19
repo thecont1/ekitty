@@ -29,7 +29,7 @@ type SimNode = { x: number; y: number; vx: number; vy: number };
 type FillTreatment = { fill: string; ink: string; fillOpacity: number; segment: string; neutral: boolean };
 type VisiblePoint = { point: PortfolioPoint; size: number; stroke: number; treatment: FillTreatment; bobDuration: number };
 type Timeline = { months: number[]; indexFor: Record<string, number>; hasDates: boolean };
-type HorizontalDrag = { startX: number; startLeft: number; pointerId: number };
+type HorizontalDrag = { startX: number; startMonths: number; pointerId: number };
 
 const PORTFOLIO_CSV_URL = "/manus-storage/PortfolioHoldingsTransactions_a72d31dd.csv";
 const LOSS_RED = "#ff3b3b";
@@ -159,9 +159,11 @@ export default function Home() {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focusedCompany, setFocusedCompany] = useState<string | null>(null);
+  const [companyQuery, setCompanyQuery] = useState("");
   const [uploadNotice, setUploadNotice] = useState<{ kind: "error" | "success"; message: string } | null>(null);
   const [sceneSize, setSceneSize] = useState({ width: 1200, height: 800 });
-  const [timelineScrollLeft, setTimelineScrollLeft] = useState(0);
+  const [visibleMonthCount, setVisibleMonthCount] = useState(24);
+  const [dataUpdatedAt, setDataUpdatedAt] = useState<string | null>(null);
   const [, repaint] = useState(0);
   const nodes = useRef<Record<string, SimNode>>({});
   const frame = useRef<number | null>(null);
@@ -175,37 +177,43 @@ export default function Home() {
   const points = useMemo(() => viewMode === "holdings" ? asHoldingPoints(eligibleRecords) : transactionPoints, [eligibleRecords, transactionPoints, viewMode]);
   const filteredPoints = useMemo(() => taxFilter === "isolate" ? points.filter((point) => point.taxSensitive) : points, [points, taxFilter]);
   const timeline = useMemo(() => createTimeline(transactionPoints), [transactionPoints]);
-  const timelineContentWidth = useMemo(() => Math.max(sceneSize.width, sceneSize.width * (timeline.months.length / 24)), [sceneSize.width, timeline.months.length]);
-  const physicsWidth = viewMode === "transactions" ? timelineContentWidth : sceneSize.width;
-  const rankings = useMemo(() => percentileRanks(filteredPoints, colorMetric), [colorMetric, filteredPoints]);
+  const monthMinimum = Math.min(6, timeline.months.length);
+  const monthMaximum = Math.min(24, timeline.months.length);
+  const effectiveMonthCount = clamp(visibleMonthCount, monthMinimum, monthMaximum);
+  const monthWindowStart = Math.max(0, timeline.months.length - effectiveMonthCount);
+  const filteredTransactionPoints = useMemo(() => taxFilter === "isolate" ? transactionPoints.filter((point) => point.taxSensitive) : transactionPoints, [taxFilter, transactionPoints]);
+  const transactionWindowPoints = useMemo(() => filteredTransactionPoints.filter((point) => (timeline.indexFor[point.id] ?? 0) >= monthWindowStart), [filteredTransactionPoints, monthWindowStart, timeline]);
+  const fieldPoints = useMemo(() => viewMode === "transactions" ? transactionWindowPoints : filteredPoints, [filteredPoints, transactionWindowPoints, viewMode]);
+  const physicsWidth = sceneSize.width;
+  const rankings = useMemo(() => percentileRanks(fieldPoints, colorMetric), [colorMetric, fieldPoints]);
 
   const visiblePoints = useMemo<VisiblePoint[]>(() => {
-    const values = filteredPoints.map((point) => point.currentValue ** 1.18);
+    const values = fieldPoints.map((point) => point.currentValue ** 1.18);
     const min = Math.min(...values, 0);
     const max = Math.max(...values, 1);
-    const maxQty = Math.max(...filteredPoints.map((point) => point.qty), 1);
+    const maxQty = Math.max(...fieldPoints.map((point) => point.qty), 1);
     const compactField = sceneSize.width < 640;
     const minSize = compactField ? (viewMode === "transactions" ? 17 : 24) : (viewMode === "transactions" ? 25 : 34);
     const maxSize = compactField ? (viewMode === "transactions" ? 70 : 106) : (viewMode === "transactions" ? 118 : 220);
-    return filteredPoints.map((point) => ({ point, size: scale(point.currentValue ** 1.18, min, max, minSize, maxSize), stroke: scale(point.qty, 0, maxQty, 1.65, 4.5), treatment: treatmentFor(point, rankings[point.id] ?? 0), bobDuration: clamp(3.6 - Math.min(1.75, Math.abs(point.pnlPercent) / 35), 1.7, 3.6) }));
-  }, [filteredPoints, rankings, sceneSize.width, viewMode]);
+    return fieldPoints.map((point) => ({ point, size: scale(point.currentValue ** 1.18, min, max, minSize, maxSize), stroke: scale(point.qty, 0, maxQty, 1.65, 4.5), treatment: treatmentFor(point, rankings[point.id] ?? 0), bobDuration: clamp(3.6 - Math.min(1.75, Math.abs(point.pnlPercent) / 35), 1.7, 3.6) }));
+  }, [fieldPoints, rankings, sceneSize.width, viewMode]);
 
   const selected = visiblePoints.find((entry) => entry.point.id === selectedId)?.point ?? null;
   const hovered = visiblePoints.find((entry) => entry.point.id === hoveredId)?.point ?? null;
-  const maxTimelineScroll = Math.max(0, timelineContentWidth - sceneSize.width);
-  const visibleOffsetX = viewMode === "transactions" ? timelineScrollLeft : 0;
+  const searchTerm = companyQuery.trim().toLocaleLowerCase();
 
   const beginTimelineDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
     if (viewMode !== "transactions") return;
-    horizontalDrag.current = { startX: event.clientX, startLeft: timelineScrollLeft, pointerId: event.pointerId };
+    horizontalDrag.current = { startX: event.clientX, startMonths: effectiveMonthCount, pointerId: event.pointerId };
     event.currentTarget.setPointerCapture(event.pointerId);
-  }, [timelineScrollLeft, viewMode]);
+  }, [effectiveMonthCount, viewMode]);
 
   const moveTimelineDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
     const drag = horizontalDrag.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    setTimelineScrollLeft(clamp(drag.startLeft - (event.clientX - drag.startX), 0, maxTimelineScroll));
-  }, [maxTimelineScroll]);
+    const change = Math.round(((event.clientX - drag.startX) / Math.max(sceneSize.width, 320)) * 18);
+    setVisibleMonthCount(clamp(drag.startMonths + change, monthMinimum, monthMaximum));
+  }, [monthMaximum, monthMinimum, sceneSize.width]);
 
   const endTimelineDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
     if (horizontalDrag.current?.pointerId === event.pointerId) horizontalDrag.current = null;
@@ -216,8 +224,8 @@ export default function Home() {
     const delta = event.deltaX || event.deltaY;
     if (!delta) return;
     event.preventDefault();
-    setTimelineScrollLeft((current) => clamp(current + delta, 0, maxTimelineScroll));
-  }, [maxTimelineScroll, viewMode]);
+    setVisibleMonthCount((current) => clamp(current + Math.sign(delta), monthMinimum, monthMaximum));
+  }, [monthMaximum, monthMinimum, viewMode]);
 
   useEffect(() => {
     const updateSize = () => setSceneSize({ width: window.innerWidth, height: window.innerHeight });
@@ -227,17 +235,16 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (viewMode === "transactions") setTimelineScrollLeft(maxTimelineScroll);
-  }, [maxTimelineScroll, records, viewMode]);
+    setVisibleMonthCount((current) => clamp(current, monthMinimum, monthMaximum));
+  }, [monthMaximum, monthMinimum, records]);
 
   useEffect(() => {
     if (viewMode !== "transactions" || !focusedCompany || !timeline.months.length) return;
     const companyIndices = transactionPoints.filter((point) => point.company === focusedCompany).map((point) => timeline.indexFor[point.id]).filter((index): index is number => index !== undefined);
     if (!companyIndices.length) return;
-    const stripWidth = timelineContentWidth / timeline.months.length;
-    const centre = ((Math.min(...companyIndices) + Math.max(...companyIndices) + 1) / 2) * stripWidth;
-    setTimelineScrollLeft(clamp(centre - sceneSize.width / 2, 0, maxTimelineScroll));
-  }, [focusedCompany, maxTimelineScroll, sceneSize.width, timeline, timelineContentWidth, transactionPoints, viewMode]);
+    const requiredMonths = timeline.months.length - Math.min(...companyIndices);
+    setVisibleMonthCount((current) => clamp(Math.max(current, requiredMonths), monthMinimum, monthMaximum));
+  }, [focusedCompany, monthMaximum, monthMinimum, timeline, transactionPoints, viewMode]);
 
   useEffect(() => {
     nodes.current = {};
@@ -247,10 +254,14 @@ export default function Home() {
   }, [showEtfs, viewMode]);
 
   useEffect(() => {
+    if (viewMode === "transactions") nodes.current = {};
+  }, [effectiveMonthCount, monthWindowStart, viewMode]);
+
+  useEffect(() => {
     let mounted = true;
-    fetch(PORTFOLIO_CSV_URL).then((response) => response.text()).then((text) => {
+    fetch(PORTFOLIO_CSV_URL).then(async (response) => ({ text: await response.text(), lastModified: response.headers.get("last-modified") })).then(({ text, lastModified }) => {
       const parsed = parsePortfolioCsv(text);
-      if (mounted && parsed.records.length) setRecords(parsed.records);
+      if (mounted && parsed.records.length) { setRecords(parsed.records); setDataUpdatedAt(lastModified ?? new Date().toISOString()); }
     }).catch(() => undefined);
     return () => { mounted = false; };
   }, []);
@@ -279,8 +290,8 @@ export default function Home() {
           let anchorY: number;
           let pull: number;
           if (viewMode === "transactions") {
-            const stripWidth = timelineContentWidth / timeline.months.length;
-            const monthIndex = timeline.indexFor[point.id] ?? seed % timeline.months.length;
+            const stripWidth = sceneSize.width / effectiveMonthCount;
+            const monthIndex = (timeline.indexFor[point.id] ?? seed % timeline.months.length) - monthWindowStart;
             anchorX = (monthIndex + 0.5) * stripWidth + (((seed >>> 10) % 100) / 100 - 0.5) * stripWidth * 0.42;
             anchorY = sceneSize.height * (0.17 + (((seed >>> 18) % 67) / 100));
             pull = 0.0034;
@@ -303,8 +314,8 @@ export default function Home() {
           node.vy += (node.y < margin ? margin - node.y : node.y > sceneSize.height - margin ? sceneSize.height - margin - node.y : 0) * 0.008;
           node.vx *= 0.91; node.vy *= 0.91; node.x += node.vx * delta; node.y += node.vy * delta;
           if (viewMode === "transactions") {
-            const stripWidth = timelineContentWidth / timeline.months.length;
-            const monthIndex = timeline.indexFor[point.id] ?? 0;
+            const stripWidth = sceneSize.width / effectiveMonthCount;
+            const monthIndex = (timeline.indexFor[point.id] ?? 0) - monthWindowStart;
             const edge = Math.min(Math.max(3, size * 0.08), stripWidth * 0.18);
             node.x = clamp(node.x, monthIndex * stripWidth + edge, (monthIndex + 1) * stripWidth - edge);
           }
@@ -315,14 +326,14 @@ export default function Home() {
     };
     frame.current = requestAnimationFrame(tick);
     return () => { if (frame.current) cancelAnimationFrame(frame.current); };
-  }, [frozen, physicsWidth, repulsion, sceneSize, selectedId, timeline, timelineContentWidth, viewMode, visiblePoints]);
+  }, [effectiveMonthCount, frozen, monthWindowStart, physicsWidth, repulsion, sceneSize, selectedId, timeline, viewMode, visiblePoints]);
 
   const importFile = useCallback((file?: File) => {
     if (!file) return;
     file.text().then((text) => {
       const parsed = parsePortfolioCsv(text);
       if (parsed.error) { setUploadNotice({ kind: "error", message: parsed.error }); return; }
-      setRecords(parsed.records); setUploadNotice({ kind: "success", message: `${parsed.records.length} lots loaded into the field.` }); setSelectedId(null); setHoveredId(null); setTaxFilter("all");
+      setRecords(parsed.records); setDataUpdatedAt(new Date().toISOString()); setUploadNotice({ kind: "success", message: `${parsed.records.length} lots loaded into the field.` }); setSelectedId(null); setHoveredId(null); setTaxFilter("all");
     });
   }, []);
 
@@ -332,21 +343,23 @@ export default function Home() {
 
   return (
     <main className={darkMode ? "dark relative h-[100dvh] w-screen overflow-hidden bg-[#101617] text-stone-100" : "relative h-[100dvh] w-screen overflow-hidden bg-white text-stone-900"}>
-      {viewMode === "transactions" && <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">{timeline.months.map((month, index) => <div key={month} className={darkMode ? "absolute bottom-0 top-0 border-l border-[#284149]" : "absolute bottom-0 top-0 border-l border-[#edf7ff]"} style={{ left: index * (timelineContentWidth / timeline.months.length) - timelineScrollLeft }}>{index % 3 === 0 && <span className={darkMode ? "absolute left-1 top-3 hidden font-mono text-[8px] tracking-[.12em] text-[#77949e] md:block" : "absolute left-1 top-3 hidden font-mono text-[8px] tracking-[.12em] text-[#c3dff5] md:block"}>{labelMonth(month)}</span>}</div>)}</div>}
+      {viewMode === "transactions" && <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">{timeline.months.slice(monthWindowStart).map((month, index) => <div key={month} className={darkMode ? "absolute bottom-0 top-0 border-l border-[#284149]" : "absolute bottom-0 top-0 border-l border-[#edf7ff]"} style={{ left: index * (sceneSize.width / effectiveMonthCount) }}>{index % 3 === 0 && <span className={darkMode ? "absolute left-1 top-3 hidden font-mono text-[8px] tracking-[.12em] text-[#77949e] md:block" : "absolute left-1 top-3 hidden font-mono text-[8px] tracking-[.12em] text-[#c3dff5] md:block"}>{labelMonth(month)}</span>}</div>)}</div>}
+      <input aria-label="Find a company" value={companyQuery} onChange={(event) => setCompanyQuery(event.target.value)} onPointerDown={(event) => event.stopPropagation()} className={darkMode ? "fixed left-5 top-11 z-40 w-[min(272px,calc(100vw-96px))] rounded-full border border-[#49636a] bg-[#142022] px-4 py-2.5 font-mono text-[10px] text-stone-100 shadow-[0_7px_22px_-14px_rgba(0,0,0,.7)] outline-none placeholder:text-stone-400 focus:border-[#D8AE37]" : "fixed left-5 top-11 z-40 w-[min(272px,calc(100vw-96px))] rounded-full border border-stone-300 bg-white px-4 py-2.5 font-mono text-[10px] text-stone-700 shadow-[0_7px_22px_-14px_rgba(41,37,36,.25)] outline-none placeholder:text-stone-500 focus:border-[#D8AE37]"} placeholder="look what the cat brought in" />
       <section aria-label="Portfolio kitty field" className="absolute inset-0 z-10 touch-pan-y" onWheel={scrollTimeline} onPointerDown={beginTimelineDrag} onPointerMove={moveTimelineDrag} onPointerUp={endTimelineDrag} onPointerCancel={endTimelineDrag}>
         {visiblePoints.map((entry) => {
           const node = nodes.current[entry.point.id]; if (!node) return null;
-          const muted = (taxFilter === "highlight" && !entry.point.taxSensitive) || (viewMode === "transactions" && focusedCompany !== null && entry.point.company !== focusedCompany);
-          return <div key={entry.point.id} className={muted ? "opacity-20 grayscale-[.32] transition-opacity duration-300" : "transition-opacity duration-300"} style={{ position: "absolute", left: node.x - visibleOffsetX, top: node.y }}><CatGlyph {...entry} focused={viewMode === "transactions" ? focusedCompany === entry.point.company : selectedId === entry.point.id} frozen={frozen} showAgeBadge={viewMode === "transactions" && showAgeBadges} onHover={() => setHoveredId(entry.point.id)} onLeave={() => setHoveredId((current) => current === entry.point.id ? null : current)} onClick={() => { if (viewMode === "transactions") { setFocusedCompany((current) => current === entry.point.company ? null : entry.point.company); setSelectedId(null); setHoveredId(null); } else { setSelectedId(entry.point.id); setHoveredId(null); } }} /></div>;
+          const searchMatch = !searchTerm || entry.point.company.toLocaleLowerCase().includes(searchTerm);
+          const muted = (taxFilter === "highlight" && !entry.point.taxSensitive) || (viewMode === "transactions" && focusedCompany !== null && entry.point.company !== focusedCompany) || !searchMatch;
+          return <div key={entry.point.id} className={muted ? "opacity-20 grayscale-[.32] transition-opacity duration-300" : "transition-opacity duration-300"} style={{ position: "absolute", left: node.x, top: node.y }}><CatGlyph {...entry} focused={viewMode === "transactions" ? focusedCompany === entry.point.company || Boolean(searchTerm && searchMatch) : selectedId === entry.point.id} frozen={frozen} showAgeBadge={viewMode === "transactions" && showAgeBadges} onHover={() => setHoveredId(entry.point.id)} onLeave={() => setHoveredId((current) => current === entry.point.id ? null : current)} onClick={() => { if (viewMode === "transactions") { setFocusedCompany((current) => current === entry.point.company ? null : entry.point.company); setSelectedId(null); setHoveredId(null); } else { setSelectedId(entry.point.id); setHoveredId(null); } }} /></div>;
         })}
       </section>
 
-      <AnimatePresence>{hovered && tooltipNode && !selected && <motion.aside initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.16 }} className="pointer-events-none fixed z-30 w-64 rounded-xl border border-stone-200/90 bg-white/95 px-4 py-3 shadow-[0_16px_45px_-20px_rgba(41,37,36,.42)] backdrop-blur" style={{ left: clamp(tooltipNode.x - visibleOffsetX + 34, 12, sceneSize.width - 274), top: clamp(tooltipNode.y - 28, 12, sceneSize.height - 184) }}><div className="mb-2 flex items-start justify-between gap-2"><p className="font-serif text-[15px] leading-4 text-stone-900">{hovered.company}</p><span className={hovered.pnl >= 0 ? "font-mono text-[10px] text-emerald-700" : "font-mono text-[10px] text-[#ff3b3b]"}>{hovered.pnl >= 0 ? "+" : ""}{hovered.pnlPercent.toFixed(1)}%</span></div><div className="grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-[10px] tabular-nums">{viewMode === "transactions" && <><span className="text-stone-400">Date</span><span className="text-right">{formatTransactionDate(hovered.oldestDate)}</span></>}<span className="text-stone-400">Qty</span><span className="text-right">{hovered.qty}</span><span className="text-stone-400">Buy price</span><span className="text-right">{formatPrice(hovered.avgPrice)}</span><span className="text-stone-400">Current price</span><span className="text-right">{formatPrice(hovered.currentPrice)}</span><span className="text-stone-400">Invested</span><span className="text-right">{formatCurrency(hovered.investedValue)}</span><span className="text-stone-400">Value</span><span className="text-right">{formatCurrency(hovered.currentValue)}</span><span className="text-stone-400">P&amp;L</span><span className={hovered.pnl >= 0 ? "text-right text-emerald-700" : "text-right text-[#ff3b3b]"}>{formatCurrency(hovered.pnl)}</span></div></motion.aside>}</AnimatePresence>
+      <AnimatePresence>{hovered && tooltipNode && !selected && <motion.aside initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.16 }} className="pointer-events-none fixed z-30 w-64 rounded-xl border border-stone-200/90 bg-white/95 px-4 py-3 shadow-[0_16px_45px_-20px_rgba(41,37,36,.42)] backdrop-blur" style={{ left: clamp(tooltipNode.x + 34, 12, sceneSize.width - 274), top: clamp(tooltipNode.y - 28, 12, sceneSize.height - 184) }}><div className="mb-2 flex items-start justify-between gap-2"><p className="font-serif text-[15px] leading-4 text-stone-900">{hovered.company}</p><span className={hovered.pnl >= 0 ? "font-mono text-[10px] text-emerald-700" : "font-mono text-[10px] text-[#ff3b3b]"}>{hovered.pnl >= 0 ? "+" : ""}{hovered.pnlPercent.toFixed(1)}%</span></div><div className="grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-[10px] tabular-nums">{viewMode === "transactions" && <><span className="text-stone-400">Date</span><span className="text-right">{formatTransactionDate(hovered.oldestDate)}</span></>}<span className="text-stone-400">Qty</span><span className="text-right">{hovered.qty}</span><span className="text-stone-400">Buy price</span><span className="text-right">{formatPrice(hovered.avgPrice)}</span><span className="text-stone-400">Current price</span><span className="text-right">{formatPrice(hovered.currentPrice)}</span><span className="text-stone-400">Invested</span><span className="text-right">{formatCurrency(hovered.investedValue)}</span><span className="text-stone-400">Value</span><span className="text-right">{formatCurrency(hovered.currentValue)}</span><span className="text-stone-400">P&amp;L</span><span className={hovered.pnl >= 0 ? "text-right text-emerald-700" : "text-right text-[#ff3b3b]"}>{formatCurrency(hovered.pnl)}</span></div></motion.aside>}</AnimatePresence>
 
       <AnimatePresence>{viewMode === "holdings" && selected && focusNode && <motion.aside initial={{ opacity: 0, y: 12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.98 }} transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }} className="fixed z-40 w-[min(336px,calc(100vw-28px))] overflow-hidden rounded-2xl border border-stone-200 bg-white/98 shadow-[0_22px_62px_-24px_rgba(41,37,36,.5)] backdrop-blur" style={{ left: clamp(focusOnRight ? focusNode.x + 76 : focusNode.x - 412, 14, sceneSize.width - 350), top: clamp(focusNode.y - 132, 14, sceneSize.height - 494) }}><div className="flex items-start justify-between border-b border-stone-100 px-5 py-4"><div><p className="font-serif text-[19px] leading-5 text-stone-900">{selected.company}</p><p className="mt-1 font-mono text-[9px] uppercase tracking-[.17em] text-stone-400">{selected.lots.length === 1 ? "Transaction lot" : `${selected.lots.length} transaction lots`}</p></div><button type="button" onClick={() => setSelectedId(null)} aria-label="Close details" className="rounded-full p-1 text-stone-500 transition hover:bg-stone-100 hover:text-stone-900"><X size={16} /></button></div><div className="grid grid-cols-2 gap-x-5 border-b border-stone-100 px-5 py-3"><MetricRow label="Quantity" value={selected.qty.toLocaleString("en-IN")} /><MetricRow label="Avg. buy" value={formatPrice(selected.avgPrice)} /><MetricRow label="Current" value={formatPrice(selected.currentPrice)} /><MetricRow label="Unrealized P&L" value={`${selected.pnl >= 0 ? "+" : ""}${formatCurrency(selected.pnl)}`} /></div><div className="max-h-48 overflow-y-auto px-5 py-3"><p className="mb-2 font-mono text-[9px] uppercase tracking-[.18em] text-stone-400">Lot breakdown</p>{selected.lots.map((lot) => { const lotPnl = lot.buy_qty * (lot.current_price - lot.avg_price); const days = ageInDays(lot.buy_date); const completedYears = Math.floor((days ?? 0) / 365); return <div key={lot.id} className="grid grid-cols-[1fr_auto] gap-2 border-t border-stone-100 py-2 first:border-t-0"><div><p className="font-mono text-[10px] text-stone-700">{lot.buy_qty} × {formatPrice(lot.avg_price)}</p><p className="font-mono text-[9px] text-stone-400">{formatTransactionDate(lot.buy_date)}{days ? ` · ${days}d` : ""}{completedYears ? ` · ${completedYears}y complete` : ""}</p></div><span className={lotPnl >= 0 ? "self-center font-mono text-[10px] text-emerald-700" : "self-center font-mono text-[10px] text-[#ff3b3b]"}>{lotPnl >= 0 ? "+" : ""}{formatCurrency(lotPnl)}</span></div>; })}</div>{selected.taxSensitive && <div className="flex items-center gap-2 border-t border-amber-100 bg-amber-50 px-5 py-3 font-mono text-[10px] text-amber-800"><Sparkles size={13} /> Loss lot near/over the 365-day threshold.</div>}</motion.aside>}</AnimatePresence>
 
       <PortfolioDrawer open={drawerOpen} onOpenChange={setDrawerOpen} viewMode={viewMode} setViewMode={(mode) => { setViewMode(mode); setSelectedId(null); }} colorMetric={colorMetric} setColorMetric={setColorMetric} taxFilter={taxFilter} setTaxFilter={(filter) => { setTaxFilter(filter); setSelectedId(null); }} showEtfs={showEtfs} setShowEtfs={setShowEtfs} showAgeBadges={showAgeBadges} setShowAgeBadges={setShowAgeBadges} darkMode={darkMode} setDarkMode={setDarkMode} etfLotCount={etfLotCount} frozen={frozen} setFrozen={setFrozen} repulsion={repulsion} setRepulsion={setRepulsion} onImportFile={importFile} uploadNotice={uploadNotice} hasDates={timeline.hasDates} onRestore={() => { setRecords(defaultPortfolio); setUploadNotice(null); setSelectedId(null); setHoveredId(null); }} kittyCount={visiblePoints.length} lotCount={eligibleRecords.length} />
-      <a href="https://thecontrarian.in" target="_blank" rel="noreferrer" className={darkMode ? "fixed bottom-4 left-1/2 z-40 -translate-x-1/2 font-mono text-[9px] tracking-[.08em] text-stone-500 transition hover:text-stone-200" : "fixed bottom-4 left-1/2 z-40 -translate-x-1/2 font-mono text-[9px] tracking-[.08em] text-stone-400 transition hover:text-stone-800"}>© 2026 Mahesh Shantaram / thecontrarian.in</a>
+      <div className={darkMode ? "fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap font-mono text-[9px] tracking-[.08em] text-stone-500" : "fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap font-mono text-[9px] tracking-[.08em] text-stone-400"}><span>Data updated {dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</span><span aria-hidden="true">·</span><a href="https://thecontrarian.in" target="_blank" rel="noreferrer" className={darkMode ? "transition hover:text-stone-200" : "transition hover:text-stone-800"}>© 2026 Mahesh Shantaram / thecontrarian.in</a></div>
     </main>
   );
 }

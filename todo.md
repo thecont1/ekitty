@@ -25,3 +25,7 @@
 - [x] Inspect the uploaded source-of-truth CSV and reconcile Ultratech Cement dates.
 - [x] Publish the uploaded CSV and replace the live data reference.
 - [x] Verify the corrected live records and transaction placement.
+- [x] Add a bottom data last-updated timestamp beside the copyright notice.
+- [x] Add the dateline company search and live kitty highlighting.
+- [x] Replace timeline panning with a right-anchored drag-to-zoom month viewport.
+- [x] Validate the metadata, search, and month-zoom interaction.
