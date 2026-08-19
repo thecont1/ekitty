@@ -56,3 +56,5 @@
 - [x] Soften vertical month-zoom drag and wheel response.
 - [x] Create a taller scrollable transaction field with fixed search and attribution controls.
 - [x] Reduce vertical cat bunching using the expanded field space.
+- [x] Remove the horizontal drag spring-back while retaining smooth timeline movement.
+- [x] Diagnose and restore red rendering for loss-making kitty transactions.
