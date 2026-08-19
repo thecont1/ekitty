@@ -62,3 +62,6 @@
 - [x] Restore visible transaction lots when panning the canvas to April 2024–March 2026.
 - [x] Supersede regular page scrolling with the requested two-dimensional workspace navigation.
 - [x] Replace one-axis timeline navigation with a two-dimensional pan workspace: history extends left and lower P&L territory extends downward.
+- [x] Stabilize kitty visibility during canvas panning and apply the supplied mouse SVG cursor.
+- [x] Make Reset return the workspace to the top-right world origin.
+- [x] Keep the transaction month dateline fixed at the viewport top while the canvas pans.
