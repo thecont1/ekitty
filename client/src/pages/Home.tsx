@@ -64,9 +64,14 @@ function percentileRanks(points: PortfolioPoint[], metric: ColorMetric) {
 
 function treatmentFor(point: PortfolioPoint, percentile: number): FillTreatment {
   if (percentile < 2) return { fill: "transparent", ink: "#8da0a9", fillOpacity: 0, segment: "<p2", neutral: true };
+  if (percentile <= 5) {
+    const target = point.pnl >= 0 ? GAIN_GREEN : LOSS_RED;
+    const pale = point.pnl >= 0 ? "#effaf4" : "#fff1f1";
+    return { fill: mixHex(pale, target, 0.12), ink: mixHex("#8da0a9", target, 0.18), fillOpacity: 0.12, segment: "p5", neutral: false };
+  }
   const stops = [5, 10, 25, 50, 75, 90, 95, 98];
   const stopIndex = stops.findIndex((stop) => percentile <= stop);
-  const intensity = clamp((stopIndex + 1) / stops.length, 0.14, 1);
+  const intensity = clamp((stopIndex + 2) / (stops.length + 1), 0.2, 1);
   const positive = point.pnl >= 0;
   const target = positive ? GAIN_GREEN : LOSS_RED;
   const pale = positive ? "#effaf4" : "#fff1f1";
@@ -121,7 +126,7 @@ function CatGlyph({ point, size, stroke, treatment, bobDuration, focused, frozen
   const bobStyle = frozen ? undefined : { animation: `kitty-bob ${bobDuration}s cubic-bezier(.42,0,.3,1) infinite alternate`, animationDelay: `-${(hash(point.id) % 1000) / 1000}s` };
 
   return (
-    <button type="button" aria-label={`${point.company}: ${formatCurrency(point.pnl)} unrealized profit and loss`} className="group absolute z-10 block origin-center border-0 bg-transparent p-0 outline-none focus-visible:z-30 focus-visible:outline-none" style={{ width: size, height: size, transform: "translate(-50%, -50%)" }} onMouseEnter={onHover} onFocus={onHover} onMouseLeave={onLeave} onBlur={onLeave} onClick={onClick}>
+    <button type="button" aria-label={`${point.company}: ${formatCurrency(point.pnl)} unrealized profit and loss`} className="group absolute z-10 block origin-center border-0 bg-transparent p-0 outline-none focus-visible:z-30 focus-visible:outline-none" style={{ width: size, height: size, transform: "translate(-50%, -50%)" }} onPointerDown={(event) => event.stopPropagation()} onMouseEnter={onHover} onFocus={onHover} onMouseLeave={onLeave} onBlur={onLeave} onClick={onClick}>
       <span className="relative block h-full w-full transition-transform duration-200 ease-out group-hover:scale-[1.055] group-focus-visible:scale-[1.055]" style={{ transform: `rotate(${lean}deg) skewX(${skew}deg) scale(${widthScale}, ${heightScale})` }}>
         <span className="relative block h-full w-full" style={bobStyle}>
           {focused && <span className="absolute inset-[5%] rounded-full border-[1.5px] border-[#D8AE37]" />}
@@ -129,6 +134,7 @@ function CatGlyph({ point, size, stroke, treatment, bobDuration, focused, frozen
           <svg viewBox="0 0 192 192" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" aria-hidden="true"><path d={tailArc} fill="none" stroke={treatment.ink} strokeWidth={Math.max(1.1, stroke * 0.68)} strokeLinecap="round" /></svg>
           {point.taxSensitive && <span className="absolute left-[42%] top-[53%] h-[16%] w-[16%] rounded-full border border-[#D8AE37]" />}
           {showAgeBadge && yearsHeld >= 1 && <span className="age-badge absolute right-[16%] top-[8%] grid min-h-3 min-w-3 place-items-center text-[rgba(41,37,36,.74)] [text-shadow:0_1px_0_rgba(255,255,255,.85)]">{yearsHeld}</span>}
+          {point.isETF && <span className="absolute left-[54%] top-[60%] rounded-sm border border-[#9AA5AA] bg-white/95 px-[7%] py-[2%] font-mono text-[7px] font-semibold tracking-[.08em] text-stone-700 shadow-[0_1px_3px_rgba(41,37,36,.12)]">ETF</span>}
         </span>
       </span>
     </button>
@@ -165,9 +171,10 @@ export default function Home() {
 
   const eligibleRecords = useMemo(() => showEtfs ? records : records.filter((record) => !record.isETF), [records, showEtfs]);
   const etfLotCount = useMemo(() => records.filter((record) => record.isETF).length, [records]);
-  const points = useMemo(() => viewMode === "holdings" ? asHoldingPoints(eligibleRecords) : asTransactionPoints(eligibleRecords), [eligibleRecords, viewMode]);
+  const transactionPoints = useMemo(() => asTransactionPoints(eligibleRecords), [eligibleRecords]);
+  const points = useMemo(() => viewMode === "holdings" ? asHoldingPoints(eligibleRecords) : transactionPoints, [eligibleRecords, transactionPoints, viewMode]);
   const filteredPoints = useMemo(() => taxFilter === "isolate" ? points.filter((point) => point.taxSensitive) : points, [points, taxFilter]);
-  const timeline = useMemo(() => createTimeline(asTransactionPoints(eligibleRecords)), [eligibleRecords]);
+  const timeline = useMemo(() => createTimeline(transactionPoints), [transactionPoints]);
   const timelineContentWidth = useMemo(() => Math.max(sceneSize.width, sceneSize.width * (timeline.months.length / 24)), [sceneSize.width, timeline.months.length]);
   const physicsWidth = viewMode === "transactions" ? timelineContentWidth : sceneSize.width;
   const rankings = useMemo(() => percentileRanks(filteredPoints, colorMetric), [colorMetric, filteredPoints]);
@@ -220,19 +227,23 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (viewMode !== "transactions" || hasPositionedLatestWindow.current) return;
-    setTimelineScrollLeft(maxTimelineScroll);
-    hasPositionedLatestWindow.current = true;
-  }, [maxTimelineScroll, viewMode]);
+    if (viewMode === "transactions") setTimelineScrollLeft(maxTimelineScroll);
+  }, [maxTimelineScroll, records, viewMode]);
 
   useEffect(() => {
-    hasPositionedLatestWindow.current = false;
-  }, [records]);
+    if (viewMode !== "transactions" || !focusedCompany || !timeline.months.length) return;
+    const companyIndices = transactionPoints.filter((point) => point.company === focusedCompany).map((point) => timeline.indexFor[point.id]).filter((index): index is number => index !== undefined);
+    if (!companyIndices.length) return;
+    const stripWidth = timelineContentWidth / timeline.months.length;
+    const centre = ((Math.min(...companyIndices) + Math.max(...companyIndices) + 1) / 2) * stripWidth;
+    setTimelineScrollLeft(clamp(centre - sceneSize.width / 2, 0, maxTimelineScroll));
+  }, [focusedCompany, maxTimelineScroll, sceneSize.width, timeline, timelineContentWidth, transactionPoints, viewMode]);
 
   useEffect(() => {
     nodes.current = {};
     setHoveredId(null);
     setSelectedId(null);
+    setFocusedCompany(null);
   }, [showEtfs, viewMode]);
 
   useEffect(() => {
@@ -321,7 +332,7 @@ export default function Home() {
 
   return (
     <main className={darkMode ? "dark relative h-[100dvh] w-screen overflow-hidden bg-[#101617] text-stone-100" : "relative h-[100dvh] w-screen overflow-hidden bg-white text-stone-900"}>
-      {viewMode === "transactions" && <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">{timeline.months.map((month, index) => <div key={month} className={darkMode ? "absolute bottom-0 top-0 border-l border-[#284149]" : "absolute bottom-0 top-0 border-l border-[#edf7ff]"} style={{ left: index * (timelineContentWidth / timeline.months.length) - timelineScrollLeft }}><span className={darkMode ? "absolute left-1 top-3 hidden font-mono text-[8px] tracking-[.12em] text-[#77949e] md:block" : "absolute left-1 top-3 hidden font-mono text-[8px] tracking-[.12em] text-[#c3dff5] md:block"}>{labelMonth(month)}</span></div>)}</div>}
+      {viewMode === "transactions" && <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">{timeline.months.map((month, index) => <div key={month} className={darkMode ? "absolute bottom-0 top-0 border-l border-[#284149]" : "absolute bottom-0 top-0 border-l border-[#edf7ff]"} style={{ left: index * (timelineContentWidth / timeline.months.length) - timelineScrollLeft }}>{index % 3 === 0 && <span className={darkMode ? "absolute left-1 top-3 hidden font-mono text-[8px] tracking-[.12em] text-[#77949e] md:block" : "absolute left-1 top-3 hidden font-mono text-[8px] tracking-[.12em] text-[#c3dff5] md:block"}>{labelMonth(month)}</span>}</div>)}</div>}
       <section aria-label="Portfolio kitty field" className="absolute inset-0 z-10 touch-pan-y" onWheel={scrollTimeline} onPointerDown={beginTimelineDrag} onPointerMove={moveTimelineDrag} onPointerUp={endTimelineDrag} onPointerCancel={endTimelineDrag}>
         {visiblePoints.map((entry) => {
           const node = nodes.current[entry.point.id]; if (!node) return null;
@@ -335,7 +346,7 @@ export default function Home() {
       <AnimatePresence>{viewMode === "holdings" && selected && focusNode && <motion.aside initial={{ opacity: 0, y: 12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.98 }} transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }} className="fixed z-40 w-[min(336px,calc(100vw-28px))] overflow-hidden rounded-2xl border border-stone-200 bg-white/98 shadow-[0_22px_62px_-24px_rgba(41,37,36,.5)] backdrop-blur" style={{ left: clamp(focusOnRight ? focusNode.x + 76 : focusNode.x - 412, 14, sceneSize.width - 350), top: clamp(focusNode.y - 132, 14, sceneSize.height - 494) }}><div className="flex items-start justify-between border-b border-stone-100 px-5 py-4"><div><p className="font-serif text-[19px] leading-5 text-stone-900">{selected.company}</p><p className="mt-1 font-mono text-[9px] uppercase tracking-[.17em] text-stone-400">{selected.lots.length === 1 ? "Transaction lot" : `${selected.lots.length} transaction lots`}</p></div><button type="button" onClick={() => setSelectedId(null)} aria-label="Close details" className="rounded-full p-1 text-stone-500 transition hover:bg-stone-100 hover:text-stone-900"><X size={16} /></button></div><div className="grid grid-cols-2 gap-x-5 border-b border-stone-100 px-5 py-3"><MetricRow label="Quantity" value={selected.qty.toLocaleString("en-IN")} /><MetricRow label="Avg. buy" value={formatPrice(selected.avgPrice)} /><MetricRow label="Current" value={formatPrice(selected.currentPrice)} /><MetricRow label="Unrealized P&L" value={`${selected.pnl >= 0 ? "+" : ""}${formatCurrency(selected.pnl)}`} /></div><div className="max-h-48 overflow-y-auto px-5 py-3"><p className="mb-2 font-mono text-[9px] uppercase tracking-[.18em] text-stone-400">Lot breakdown</p>{selected.lots.map((lot) => { const lotPnl = lot.buy_qty * (lot.current_price - lot.avg_price); const days = ageInDays(lot.buy_date); const completedYears = Math.floor((days ?? 0) / 365); return <div key={lot.id} className="grid grid-cols-[1fr_auto] gap-2 border-t border-stone-100 py-2 first:border-t-0"><div><p className="font-mono text-[10px] text-stone-700">{lot.buy_qty} × {formatPrice(lot.avg_price)}</p><p className="font-mono text-[9px] text-stone-400">{formatTransactionDate(lot.buy_date)}{days ? ` · ${days}d` : ""}{completedYears ? ` · ${completedYears}y complete` : ""}</p></div><span className={lotPnl >= 0 ? "self-center font-mono text-[10px] text-emerald-700" : "self-center font-mono text-[10px] text-[#ff3b3b]"}>{lotPnl >= 0 ? "+" : ""}{formatCurrency(lotPnl)}</span></div>; })}</div>{selected.taxSensitive && <div className="flex items-center gap-2 border-t border-amber-100 bg-amber-50 px-5 py-3 font-mono text-[10px] text-amber-800"><Sparkles size={13} /> Loss lot near/over the 365-day threshold.</div>}</motion.aside>}</AnimatePresence>
 
       <PortfolioDrawer open={drawerOpen} onOpenChange={setDrawerOpen} viewMode={viewMode} setViewMode={(mode) => { setViewMode(mode); setSelectedId(null); }} colorMetric={colorMetric} setColorMetric={setColorMetric} taxFilter={taxFilter} setTaxFilter={(filter) => { setTaxFilter(filter); setSelectedId(null); }} showEtfs={showEtfs} setShowEtfs={setShowEtfs} showAgeBadges={showAgeBadges} setShowAgeBadges={setShowAgeBadges} darkMode={darkMode} setDarkMode={setDarkMode} etfLotCount={etfLotCount} frozen={frozen} setFrozen={setFrozen} repulsion={repulsion} setRepulsion={setRepulsion} onImportFile={importFile} uploadNotice={uploadNotice} hasDates={timeline.hasDates} onRestore={() => { setRecords(defaultPortfolio); setUploadNotice(null); setSelectedId(null); setHoveredId(null); }} kittyCount={visiblePoints.length} lotCount={eligibleRecords.length} />
-      <a href="https://thecontrarian.in" target="_blank" rel="noreferrer" className={darkMode ? "fixed bottom-4 right-5 z-40 font-mono text-[9px] tracking-[.08em] text-stone-500 transition hover:text-stone-200" : "fixed bottom-4 right-5 z-40 font-mono text-[9px] tracking-[.08em] text-stone-400 transition hover:text-stone-800"}>© 2026 Mahesh Shantaram / thecontrarian.in</a>
+      <a href="https://thecontrarian.in" target="_blank" rel="noreferrer" className={darkMode ? "fixed bottom-4 left-1/2 z-40 -translate-x-1/2 font-mono text-[9px] tracking-[.08em] text-stone-500 transition hover:text-stone-200" : "fixed bottom-4 left-1/2 z-40 -translate-x-1/2 font-mono text-[9px] tracking-[.08em] text-stone-400 transition hover:text-stone-800"}>© 2026 Mahesh Shantaram / thecontrarian.in</a>
     </main>
   );
 }

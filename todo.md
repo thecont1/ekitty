@@ -18,3 +18,7 @@
 - [x] Add date-first, full-value transaction tooltips.
 - [x] Replace transaction click detail cards with same-stock focus.
 - [x] Build and validate a scrollable 24-month maximum transaction window.
+- [x] Audit all refreshed records, ETF lots, and post-December 2025 transactions.
+- [x] Make every transaction month reachable through the time-window navigation.
+- [x] Repair same-stock focus, tighten p02/p05 pigment behavior, and move copyright to bottom-centre.
+- [x] Validate data coverage and corrected interactions.
