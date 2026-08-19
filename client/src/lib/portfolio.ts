@@ -10,6 +10,7 @@ export type PortfolioLot = {
   avg_price: number;
   current_price: number;
   buy_date?: string;
+  isETF?: boolean;
 };
 
 export type PortfolioPoint = {
@@ -26,6 +27,7 @@ export type PortfolioPoint = {
   oldestDate?: string;
   ageDays?: number;
   taxSensitive: boolean;
+  isETF: boolean;
 };
 
 const CLEAN_NUMBER = /[^0-9.-]/g;
@@ -68,6 +70,23 @@ function findColumn(headers: string[], names: string[]) {
   return headers.findIndex((header) => names.includes(header));
 }
 
+function normaliseDateValue(value?: string) {
+  const raw = value?.trim();
+  if (!raw) return undefined;
+  const dayFirst = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (dayFirst) {
+    const [, day, month, year] = dayFirst;
+    const date = new Date(Number(year), Number(month) - 1, Number(day));
+    return date.getFullYear() === Number(year) && date.getMonth() === Number(month) - 1 && date.getDate() === Number(day) ? `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}` : undefined;
+  }
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString().slice(0, 10);
+}
+
+function inferEtf(company: string, instrument?: string) {
+  return /\b(etf|bees)\b/i.test(`${company} ${instrument ?? ""}`) || /exchange[\s-]*traded/i.test(instrument ?? "");
+}
+
 export function parsePortfolioCsv(text: string): { records: PortfolioLot[]; error?: string } {
   const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter((line) => line.trim());
   if (lines.length < 2) return { records: [], error: "The file needs a header and at least one transaction." };
@@ -77,7 +96,8 @@ export function parsePortfolioCsv(text: string): { records: PortfolioLot[]; erro
   const quantityColumn = findColumn(headers, ["buy_qty", "qty", "quantity", "shares"]);
   const averageColumn = findColumn(headers, ["avg_price", "buy_price", "average_price", "cost_price"]);
   const currentColumn = findColumn(headers, ["current_price", "market_price", "ltp", "price"]);
-  const dateColumn = findColumn(headers, ["buy_date", "date", "purchase_date"]);
+  const dateColumn = findColumn(headers, ["buy_date", "txn_date", "transaction_date", "date", "purchase_date"]);
+  const instrumentColumn = findColumn(headers, ["asset_type", "asset_class", "instrument_type", "security_type", "type"]);
 
   if ([companyColumn, quantityColumn, averageColumn, currentColumn].some((column) => column < 0)) {
     return {
@@ -92,11 +112,11 @@ export function parsePortfolioCsv(text: string): { records: PortfolioLot[]; erro
     const quantity = parseCellNumber(row[quantityColumn]);
     const average = parseCellNumber(row[averageColumn]);
     const current = parseCellNumber(row[currentColumn]);
-    const rawDate = dateColumn >= 0 ? row[dateColumn]?.trim() : undefined;
-    const validDate = rawDate && !Number.isNaN(new Date(rawDate).getTime()) ? rawDate : undefined;
+    const validDate = normaliseDateValue(dateColumn >= 0 ? row[dateColumn] : undefined);
+    const instrument = instrumentColumn >= 0 ? row[instrumentColumn] : undefined;
 
     if (!company || !Number.isFinite(quantity) || !Number.isFinite(average) || !Number.isFinite(current)) return [];
-    return [{ id: `upload-${Date.now()}-${index}`, company, buy_qty: quantity, avg_price: average, current_price: current, buy_date: validDate }];
+    return [{ id: `upload-${Date.now()}-${index}`, company, buy_qty: quantity, avg_price: average, current_price: current, buy_date: validDate, isETF: inferEtf(company, instrument) }];
   });
 
   return records.length ? { records } : { records: [], error: "No usable rows were found in this file." };
@@ -118,6 +138,7 @@ function pointFromLots(id: string, company: string, lots: PortfolioLot[]): Portf
   const oldestDate = datedLots[0]?.buy_date;
   const ageDays = ageInDays(oldestDate);
   const taxSensitive = pnl < 0 && (ageDays ?? 0) >= 330;
+  const isETF = lots.every((lot) => lot.isETF);
 
   return {
     id,
@@ -133,6 +154,7 @@ function pointFromLots(id: string, company: string, lots: PortfolioLot[]): Portf
     oldestDate,
     ageDays,
     taxSensitive,
+    isETF,
   };
 }
 

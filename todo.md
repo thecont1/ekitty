@@ -4,3 +4,6 @@
 - [x] Implement absolute P&L percentile segmentation and #ff3b3b loss encoding.
 - [x] Add transaction-month strips and whole-year Helvetica age badges.
 - [x] Validate the revised field at desktop and mobile sizes.
+- [x] Inspect the refreshed dated CSV and identify ETF classification fields.
+- [x] Update the live CSV source and parse ETF classifications.
+- [x] Add and validate a default-on ETF visibility switch in the drawer.
