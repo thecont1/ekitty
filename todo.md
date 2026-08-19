@@ -29,3 +29,6 @@
 - [x] Add the dateline company search and live kitty highlighting.
 - [x] Replace timeline panning with a right-anchored drag-to-zoom month viewport.
 - [x] Validate the metadata, search, and month-zoom interaction.
+- [x] Calculate transaction P&L scale bounds for the visible month window.
+- [x] Position transaction kitties vertically by P&L and reduce overlap.
+- [x] Add and validate the left-side rupee P&L scale.
