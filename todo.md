@@ -7,3 +7,6 @@
 - [x] Inspect the refreshed dated CSV and identify ETF classification fields.
 - [x] Update the live CSV source and parse ETF classifications.
 - [x] Add and validate a default-on ETF visibility switch in the drawer.
+- [x] Diagnose and fix the ETF filter so hidden ETFs visibly leave the field.
+- [x] Add a default-on switch for transaction age badges below the ETF control.
+- [x] Make Transactions the default field view and verify both controls.
