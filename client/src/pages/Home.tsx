@@ -19,6 +19,7 @@ import {
   type PortfolioPoint,
 } from "@/lib/portfolio";
 import { AnimatePresence, motion } from "framer-motion";
+import { gsap } from "gsap";
 import { ChevronDown, Eye, FileUp, Menu, Pause, Play, RotateCcw, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -166,13 +167,17 @@ export default function Home() {
   const [timelineGesture, setTimelineGesture] = useState<TimelineGesture>("idle");
   const [timelinePanOffset, setTimelinePanOffset] = useState(0);
   const [canvasPanY, setCanvasPanY] = useState(0);
-  const [settledTimelineRevision, setSettledTimelineRevision] = useState(0);
   const [dataUpdatedAt, setDataUpdatedAt] = useState<string | null>(null);
   const [, repaint] = useState(0);
   const nodes = useRef<Record<string, SimNode>>({});
   const frame = useRef<number | null>(null);
   const timelineScroller = useRef<HTMLDivElement | null>(null);
   const horizontalDrag = useRef<TimelineDrag | null>(null);
+  const camera = useRef({ x: 0, y: 0 });
+  const gridWorld = useRef<HTMLDivElement | null>(null);
+  const kittyWorld = useRef<HTMLElement | null>(null);
+  const datelineWorld = useRef<HTMLDivElement | null>(null);
+  const cameraTween = useRef<gsap.core.Tween | null>(null);
   const wheelZoomRemainder = useRef(0);
   const hasPositionedLatestWindow = useRef(false);
 
@@ -206,6 +211,31 @@ export default function Home() {
     return Object.fromEntries(sorted.map((point, index) => [point.id, sorted.length <= 1 ? 0.5 : index / (sorted.length - 1)]));
   }, [fieldPoints]);
   const rankings = useMemo(() => percentileRanks(fieldPoints, colorMetric), [colorMetric, fieldPoints]);
+
+  const setCameraTransform = useCallback((x: number, y: number) => {
+    camera.current.x = x;
+    camera.current.y = y;
+    if (gridWorld.current) gsap.set(gridWorld.current, { x, y, force3D: true });
+    if (kittyWorld.current) gsap.set(kittyWorld.current, { x, y, force3D: true });
+    if (datelineWorld.current) gsap.set(datelineWorld.current, { x, force3D: true });
+  }, []);
+
+  const settleCamera = useCallback((x: number, y: number, duration = 0.28) => {
+    cameraTween.current?.kill();
+    cameraTween.current = gsap.to(camera.current, {
+      x,
+      y,
+      duration,
+      ease: "power3.out",
+      overwrite: "auto",
+      onUpdate: () => setCameraTransform(camera.current.x, camera.current.y),
+      onComplete: () => {
+        setTimelinePanOffset(x);
+        setCanvasPanY(y);
+        cameraTween.current = null;
+      },
+    });
+  }, [setCameraTransform]);
 
   const visiblePoints = useMemo<VisiblePoint[]>(() => {
     const values = fieldPoints.map((point) => point.investedValue ** 1.14);
@@ -242,17 +272,17 @@ export default function Home() {
     setFrozen(false);
     setTimelineGesture("idle");
     // The world origin for the default transaction view is the latest month at top-right.
-    setTimelinePanOffset(minCanvasPanX);
-    setCanvasPanY(0);
+    settleCamera(minCanvasPanX, 0, 0.42);
     Object.values(nodes.current).forEach((node) => { node.vx = 0; node.vy = 0; });
     repaint((value) => (value + 1) % 10_000);
-  }, [minCanvasPanX, monthMaximum, timeline.months.length]);
+  }, [minCanvasPanX, monthMaximum, settleCamera, timeline.months.length]);
 
   const beginTimelineDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
     if (viewMode !== "transactions") return;
-    horizontalDrag.current = { startX: event.clientX, startY: event.clientY, startPanX: timelinePanOffset, startPanY: canvasPanY, pointerId: event.pointerId, gesture: "idle" };
+    cameraTween.current?.kill();
+    horizontalDrag.current = { startX: event.clientX, startY: event.clientY, startPanX: camera.current.x, startPanY: camera.current.y, pointerId: event.pointerId, gesture: "idle" };
     event.currentTarget.setPointerCapture(event.pointerId);
-  }, [canvasPanY, timelinePanOffset, viewMode]);
+  }, [viewMode]);
 
   const moveTimelineDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
     const drag = horizontalDrag.current;
@@ -264,14 +294,13 @@ export default function Home() {
       drag.gesture = "pan";
       setTimelineGesture(drag.gesture);
     }
-    setTimelinePanOffset(clamp(drag.startPanX + deltaX, minCanvasPanX, 0));
-    setCanvasPanY(clamp(drag.startPanY + deltaY, minCanvasPanY, 0));
-  }, [minCanvasPanX, minCanvasPanY]);
+    setCameraTransform(clamp(drag.startPanX + deltaX, minCanvasPanX, 0), clamp(drag.startPanY + deltaY, minCanvasPanY, 0));
+  }, [minCanvasPanX, minCanvasPanY, setCameraTransform]);
 
   const endTimelineDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
     const drag = horizontalDrag.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    if (drag.gesture !== "idle") setSettledTimelineRevision((revision) => revision + 1);
+    if (drag.gesture !== "idle") { setTimelinePanOffset(camera.current.x); setCanvasPanY(camera.current.y); }
     setTimelineGesture("idle");
     horizontalDrag.current = null;
   }, []);
@@ -280,9 +309,12 @@ export default function Home() {
     if (viewMode !== "transactions") return;
     if (!event.deltaX && !event.deltaY) return;
     event.preventDefault();
-    setTimelinePanOffset((current) => clamp(current - event.deltaX, minCanvasPanX, 0));
-    setCanvasPanY((current) => clamp(current - event.deltaY, minCanvasPanY, 0));
-  }, [minCanvasPanX, minCanvasPanY, viewMode]);
+    const nextX = clamp(camera.current.x - event.deltaX, minCanvasPanX, 0);
+    const nextY = clamp(camera.current.y - event.deltaY, minCanvasPanY, 0);
+    setCameraTransform(nextX, nextY);
+    setTimelinePanOffset(nextX);
+    setCanvasPanY(nextY);
+  }, [minCanvasPanX, minCanvasPanY, setCameraTransform, viewMode]);
 
   useEffect(() => {
     const updateSize = () => setSceneSize({ width: window.innerWidth, height: window.innerHeight });
@@ -292,10 +324,17 @@ export default function Home() {
   }, [viewMode]);
 
   useEffect(() => {
-    if (viewMode !== "transactions") { setTimelinePanOffset(0); setCanvasPanY(0); return; }
+    cameraTween.current?.kill();
+    if (viewMode !== "transactions") {
+      setCameraTransform(0, 0);
+      setTimelinePanOffset(0);
+      setCanvasPanY(0);
+      return;
+    }
+    setCameraTransform(minCanvasPanX, 0);
     setTimelinePanOffset(minCanvasPanX);
     setCanvasPanY(0);
-  }, [minCanvasPanX, viewMode]);
+  }, [minCanvasPanX, setCameraTransform, viewMode]);
 
   useEffect(() => {
     setVisibleMonthCount((current) => clamp(current, monthMinimum, monthMaximum));
@@ -316,8 +355,10 @@ export default function Home() {
     const companyIndices = transactionPoints.filter((point) => point.company === focusedCompany).map((point) => timeline.indexFor[point.id]).filter((index): index is number => index !== undefined);
     if (!companyIndices.length) return;
     const focusX = (Math.min(...companyIndices) + 0.5) * transactionStripWidth;
-    setTimelinePanOffset(clamp(sceneSize.width * 0.5 - focusX, minCanvasPanX, 0));
-  }, [focusedCompany, minCanvasPanX, sceneSize.width, timeline, transactionPoints, transactionStripWidth, viewMode]);
+    settleCamera(clamp(sceneSize.width * 0.5 - focusX, minCanvasPanX, 0), camera.current.y, 0.36);
+  }, [focusedCompany, minCanvasPanX, sceneSize.width, settleCamera, timeline, transactionPoints, transactionStripWidth, viewMode]);
+
+  useEffect(() => () => { cameraTween.current?.kill(); }, []);
 
   useEffect(() => {
     nodes.current = {};
@@ -424,11 +465,11 @@ export default function Home() {
 
   return (
     <main className={darkMode ? "dark relative h-[100dvh] w-screen overflow-hidden bg-[#101617] text-stone-100" : "relative h-[100dvh] w-screen overflow-hidden bg-white text-stone-900"}>
-      {viewMode === "transactions" && <div aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-0 overflow-hidden" style={{ width: virtualCanvasWidth, height: virtualCanvasHeight, transform: `translate3d(${timelinePanOffset}px, ${canvasPanY}px, 0)` }}>{pnlTicks.map((tick) => { const ratio = (tick + pnlBound) / (pnlBound * 2); return <div key={`grid-${tick}`} className={darkMode ? "absolute left-0 right-0 border-t border-[#20353b]/28" : "absolute left-0 right-0 border-t border-[#dbeef8]/34"} style={{ top: pnlScaleMargin + (1 - ratio) * (transactionLayoutHeight - pnlScaleMargin * 2) }} />; })}{timeline.months.map((month, index) => <div key={month} className={darkMode ? "absolute bottom-0 top-0 border-l border-[#284149]/42" : "absolute bottom-0 top-0 border-l border-[#edf7ff]/46"} style={{ left: index * transactionStripWidth }} />)}{elapsedYearGuides.map((guide) => { const index = timeline.months.indexOf(guide.serial); return <div key={`year-${guide.years}`} className="absolute bottom-0 top-0 w-[3px] bg-[#70b9e8] shadow-[0_0_0_1px_rgba(112,185,232,.14)]" style={{ left: index * transactionStripWidth }} />; })}</div>}
-      {viewMode === "transactions" && <div aria-hidden="true" className={darkMode ? "pointer-events-none fixed inset-x-0 top-0 z-20 h-10 overflow-hidden bg-[#101617]/88 backdrop-blur-[2px]" : "pointer-events-none fixed inset-x-0 top-0 z-20 h-10 overflow-hidden bg-white/88 backdrop-blur-[2px]"}><div className="relative h-full" style={{ width: virtualCanvasWidth, transform: `translate3d(${timelinePanOffset}px, 0, 0)` }}>{timeline.months.map((month, index) => index % 3 === 0 && <span key={`label-${month}`} className={darkMode ? "absolute top-3 hidden font-mono text-[9px] font-medium tracking-[.12em] text-[#a6c2cc] md:block" : "absolute top-3 hidden font-mono text-[9px] font-medium tracking-[.12em] text-[#61869d] md:block"} style={{ left: index * transactionStripWidth + 4 }}>{labelMonth(month)}</span>)}{elapsedYearGuides.map((guide) => { const index = timeline.months.indexOf(guide.serial); return <span key={`year-label-${guide.years}`} className="absolute top-7 font-mono text-[8px] tracking-[.12em] text-[#4096cf]" style={{ left: index * transactionStripWidth + 5 }}>{guide.years}y</span>; })}</div></div>}
+      {viewMode === "transactions" && <div ref={gridWorld} aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-0 overflow-hidden" style={{ width: virtualCanvasWidth, height: virtualCanvasHeight }}>{pnlTicks.map((tick) => { const ratio = (tick + pnlBound) / (pnlBound * 2); return <div key={`grid-${tick}`} className={darkMode ? "absolute left-0 right-0 border-t border-[#20353b]/28" : "absolute left-0 right-0 border-t border-[#dbeef8]/34"} style={{ top: pnlScaleMargin + (1 - ratio) * (transactionLayoutHeight - pnlScaleMargin * 2) }} />; })}{timeline.months.map((month, index) => <div key={month} className={darkMode ? "absolute bottom-0 top-0 border-l border-[#284149]/42" : "absolute bottom-0 top-0 border-l border-[#edf7ff]/46"} style={{ left: index * transactionStripWidth }} />)}{elapsedYearGuides.map((guide) => { const index = timeline.months.indexOf(guide.serial); return <div key={`year-${guide.years}`} className="absolute bottom-0 top-0 w-[3px] bg-[#70b9e8] shadow-[0_0_0_1px_rgba(112,185,232,.14)]" style={{ left: index * transactionStripWidth }} />; })}</div>}
+      {viewMode === "transactions" && <div aria-hidden="true" className={darkMode ? "pointer-events-none fixed inset-x-0 top-0 z-20 h-10 overflow-hidden bg-[#101617]/88 backdrop-blur-[2px]" : "pointer-events-none fixed inset-x-0 top-0 z-20 h-10 overflow-hidden bg-white/88 backdrop-blur-[2px]"}><div ref={datelineWorld} className="relative h-full" style={{ width: virtualCanvasWidth }}>{timeline.months.map((month, index) => index % 3 === 0 && <span key={`label-${month}`} className={darkMode ? "absolute top-3 hidden font-mono text-[9px] font-medium tracking-[.12em] text-[#a6c2cc] md:block" : "absolute top-3 hidden font-mono text-[9px] font-medium tracking-[.12em] text-[#61869d] md:block"} style={{ left: index * transactionStripWidth + 4 }}>{labelMonth(month)}</span>)}{elapsedYearGuides.map((guide) => { const index = timeline.months.indexOf(guide.serial); return <span key={`year-label-${guide.years}`} className="absolute top-7 font-mono text-[8px] tracking-[.12em] text-[#4096cf]" style={{ left: index * transactionStripWidth + 5 }}>{guide.years}y</span>; })}</div></div>}
       <button type="button" aria-label="Reset portfolio field" onPointerDown={(event) => event.stopPropagation()} onClick={resetViewport} className={darkMode ? "fixed right-5 top-[8.5rem] z-40 grid h-12 w-12 place-items-center rounded-full border border-[#49636a] bg-[#142022] text-stone-300 shadow-[0_10px_30px_-16px_rgba(0,0,0,.72)] transition hover:-translate-y-0.5 hover:border-[#D8AE37] hover:text-[#D8AE37] active:scale-95" : "fixed right-5 top-[8.5rem] z-40 grid h-12 w-12 place-items-center rounded-full border border-stone-200 bg-white text-stone-500 shadow-[0_10px_30px_-16px_rgba(41,37,36,.45)] transition hover:-translate-y-0.5 hover:border-[#D8AE37] hover:text-[#a87c12] active:scale-95"}><RotateCcw size={17} /></button>
       <div className="fixed bottom-11 left-1/2 z-40 -translate-x-1/2"><input aria-label="Find a company" value={companyQuery} onChange={(event) => setCompanyQuery(event.target.value)} onPointerDown={(event) => event.stopPropagation()} className={darkMode ? "w-[min(348px,calc(100vw-32px))] rounded-full border border-[#49636a] bg-[#142022] px-4 py-1.5 font-mono text-[9px] text-stone-100 shadow-[0_6px_18px_-12px_rgba(0,0,0,.8)] outline-none placeholder:text-stone-400 focus:border-[#D8AE37]" : "w-[min(348px,calc(100vw-32px))] rounded-full border border-stone-300 bg-white px-4 py-1.5 font-mono text-[9px] text-stone-700 shadow-[0_6px_18px_-12px_rgba(41,37,36,.28)] outline-none placeholder:text-stone-500 focus:border-[#D8AE37]"} placeholder="look what the cat brought in" /></div>
-      <section aria-label="Portfolio kitty field" className="absolute left-0 top-0 z-10 touch-none" style={{ width: viewMode === "transactions" ? virtualCanvasWidth : sceneSize.width, height: viewMode === "transactions" ? virtualCanvasHeight : sceneSize.height, transform: `translate3d(${activeCanvasPanX}px, ${activeCanvasPanY}px, 0)`, cursor: viewMode === "transactions" ? MOUSE_CURSOR : "default" }} onWheel={scrollTimeline} onPointerDown={beginTimelineDrag} onPointerMove={moveTimelineDrag} onPointerUp={endTimelineDrag} onPointerCancel={endTimelineDrag}>
+      <section ref={kittyWorld} aria-label="Portfolio kitty field" className="absolute left-0 top-0 z-10 touch-none" style={{ width: viewMode === "transactions" ? virtualCanvasWidth : sceneSize.width, height: viewMode === "transactions" ? virtualCanvasHeight : sceneSize.height, cursor: viewMode === "transactions" ? MOUSE_CURSOR : "default" }} onWheel={scrollTimeline} onPointerDown={beginTimelineDrag} onPointerMove={moveTimelineDrag} onPointerUp={endTimelineDrag} onPointerCancel={endTimelineDrag}>
         {visiblePoints.map((entry) => {
           const node = nodes.current[entry.point.id]; if (!node) return null;
           const searchMatch = !searchTerm || entry.point.company.toLocaleLowerCase().includes(searchTerm);
