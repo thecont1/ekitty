@@ -52,3 +52,7 @@
 - [x] Add April 2024 and September 2026 padded transaction months.
 - [x] Keep the default 24-month window latest-right while allowing historical panning to April 2024.
 - [x] Validate May 2024 lots and date-label readability in the historical window.
+- [x] Smooth horizontal timeline panning during drag while deferring kitty reflow until release.
+- [x] Soften vertical month-zoom drag and wheel response.
+- [x] Create a taller scrollable transaction field with fixed search and attribution controls.
+- [x] Reduce vertical cat bunching using the expanded field space.

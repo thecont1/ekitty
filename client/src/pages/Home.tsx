@@ -29,7 +29,8 @@ type SimNode = { x: number; y: number; vx: number; vy: number };
 type FillTreatment = { fill: string; ink: string; fillOpacity: number; segment: string; neutral: boolean };
 type VisiblePoint = { point: PortfolioPoint; size: number; stroke: number; treatment: FillTreatment; bobDuration: number };
 type Timeline = { months: number[]; indexFor: Record<string, number>; hasDates: boolean };
-type TimelineDrag = { startX: number; startY: number; startMonths: number; startWindowStart: number; pointerId: number };
+type TimelineGesture = "idle" | "pan" | "zoom";
+type TimelineDrag = { startX: number; startY: number; startMonths: number; startWindowStart: number; pointerId: number; gesture: TimelineGesture; deltaX: number };
 
 const PORTFOLIO_CSV_URL = "/manus-storage/PortfolioHoldingsTransactions_a72d31dd.csv";
 const LOSS_RED = "#ff3b3b";
@@ -161,12 +162,16 @@ export default function Home() {
   const [sceneSize, setSceneSize] = useState({ width: 1200, height: 800 });
   const [visibleMonthCount, setVisibleMonthCount] = useState(24);
   const [requestedMonthWindowStart, setRequestedMonthWindowStart] = useState(0);
+  const [timelineGesture, setTimelineGesture] = useState<TimelineGesture>("idle");
+  const [timelinePanOffset, setTimelinePanOffset] = useState(0);
+  const [settledTimelineRevision, setSettledTimelineRevision] = useState(0);
   const [dataUpdatedAt, setDataUpdatedAt] = useState<string | null>(null);
   const [, repaint] = useState(0);
   const nodes = useRef<Record<string, SimNode>>({});
   const frame = useRef<number | null>(null);
   const timelineScroller = useRef<HTMLDivElement | null>(null);
   const horizontalDrag = useRef<TimelineDrag | null>(null);
+  const wheelZoomRemainder = useRef(0);
   const hasPositionedLatestWindow = useRef(false);
 
   const eligibleRecords = useMemo(() => showEtfs ? records : records.filter((record) => !record.isETF), [records, showEtfs]);
@@ -222,13 +227,15 @@ export default function Home() {
     setHoveredId(null);
     setSelectedId(null);
     setFrozen(false);
+    setTimelineGesture("idle");
+    setTimelinePanOffset(0);
     Object.values(nodes.current).forEach((node) => { node.vx = 0; node.vy = 0; });
     repaint((value) => (value + 1) % 10_000);
   }, [monthMaximum, timeline.months.length]);
 
   const beginTimelineDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
     if (viewMode !== "transactions") return;
-    horizontalDrag.current = { startX: event.clientX, startY: event.clientY, startMonths: effectiveMonthCount, startWindowStart: monthWindowStart, pointerId: event.pointerId };
+    horizontalDrag.current = { startX: event.clientX, startY: event.clientY, startMonths: effectiveMonthCount, startWindowStart: monthWindowStart, pointerId: event.pointerId, gesture: "idle", deltaX: 0 };
     event.currentTarget.setPointerCapture(event.pointerId);
   }, [effectiveMonthCount, monthWindowStart, viewMode]);
 
@@ -237,40 +244,65 @@ export default function Home() {
     if (!drag || drag.pointerId !== event.pointerId) return;
     const deltaX = event.clientX - drag.startX;
     const deltaY = event.clientY - drag.startY;
-    if (Math.abs(deltaX) >= Math.abs(deltaY)) {
-      const monthShift = Math.round((-deltaX / Math.max(sceneSize.width, 320)) * 18);
-      setRequestedMonthWindowStart(clamp(drag.startWindowStart + monthShift, 0, maxMonthWindowStart));
+    if (drag.gesture === "idle" && Math.max(Math.abs(deltaX), Math.abs(deltaY)) < 12) return;
+    if (drag.gesture === "idle") {
+      drag.gesture = Math.abs(deltaX) >= Math.abs(deltaY) ? "pan" : "zoom";
+      setTimelineGesture(drag.gesture);
+    }
+    if (drag.gesture === "pan") {
+      drag.deltaX = clamp(deltaX, -sceneSize.width * 0.45, sceneSize.width * 0.45);
+      setTimelinePanOffset(drag.deltaX);
     } else {
-      const monthChange = Math.round((-deltaY / Math.max(sceneSize.height, 320)) * 18);
+      const monthChange = Math.round(-deltaY / 104);
       const nextMonthCount = clamp(drag.startMonths + monthChange, monthMinimum, monthMaximum);
       setVisibleMonthCount(nextMonthCount);
       if (drag.startWindowStart === maxMonthWindowStart) setRequestedMonthWindowStart(Math.max(0, timeline.months.length - nextMonthCount));
     }
-  }, [maxMonthWindowStart, monthMaximum, monthMinimum, sceneSize.height, sceneSize.width, timeline.months.length]);
+  }, [maxMonthWindowStart, monthMaximum, monthMinimum, sceneSize.width, timeline.months.length]);
 
   const endTimelineDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
-    if (horizontalDrag.current?.pointerId === event.pointerId) horizontalDrag.current = null;
-  }, []);
+    const drag = horizontalDrag.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (drag.gesture === "pan") {
+      const monthShift = Math.round((-drag.deltaX / Math.max(sceneSize.width, 320)) * 10);
+      setRequestedMonthWindowStart(clamp(drag.startWindowStart + monthShift, 0, maxMonthWindowStart));
+    }
+    if (drag.gesture !== "idle") setSettledTimelineRevision((revision) => revision + 1);
+    setTimelineGesture("idle");
+    setTimelinePanOffset(0);
+    horizontalDrag.current = null;
+  }, [maxMonthWindowStart, sceneSize.width]);
 
   const scrollTimeline = useCallback((event: React.WheelEvent<HTMLElement>) => {
     if (viewMode !== "transactions") return;
-    const delta = event.deltaX || event.deltaY;
+    const horizontalIntent = Math.abs(event.deltaX) > Math.abs(event.deltaY);
+    if (!horizontalIntent && !event.altKey) return;
+    const delta = horizontalIntent ? event.deltaX : event.deltaY;
     if (!delta) return;
     event.preventDefault();
-    if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) setRequestedMonthWindowStart((current) => clamp(current + Math.sign(event.deltaX), 0, maxMonthWindowStart));
-    else setVisibleMonthCount((current) => {
-      const nextMonthCount = clamp(current + Math.sign(delta), monthMinimum, monthMaximum);
+    if (horizontalIntent) {
+      setRequestedMonthWindowStart((current) => clamp(current + Math.sign(event.deltaX), 0, maxMonthWindowStart));
+      setSettledTimelineRevision((revision) => revision + 1);
+      return;
+    }
+    wheelZoomRemainder.current += event.deltaY;
+    if (Math.abs(wheelZoomRemainder.current) < 80) return;
+    const direction = Math.sign(wheelZoomRemainder.current);
+    wheelZoomRemainder.current = 0;
+    setVisibleMonthCount((current) => {
+      const nextMonthCount = clamp(current + direction, monthMinimum, monthMaximum);
       if (requestedMonthWindowStart === maxMonthWindowStart) setRequestedMonthWindowStart(Math.max(0, timeline.months.length - nextMonthCount));
       return nextMonthCount;
     });
+    setSettledTimelineRevision((revision) => revision + 1);
   }, [maxMonthWindowStart, monthMaximum, monthMinimum, requestedMonthWindowStart, timeline.months.length, viewMode]);
 
   useEffect(() => {
-    const updateSize = () => setSceneSize({ width: window.innerWidth, height: window.innerHeight });
+    const updateSize = () => setSceneSize({ width: window.innerWidth, height: viewMode === "transactions" ? Math.max(window.innerHeight * 2, 1200) : window.innerHeight });
     updateSize();
     window.addEventListener("resize", updateSize);
     return () => window.removeEventListener("resize", updateSize);
-  }, []);
+  }, [viewMode]);
 
   useEffect(() => {
     setVisibleMonthCount((current) => clamp(current, monthMinimum, monthMaximum));
@@ -304,7 +336,7 @@ export default function Home() {
 
   useEffect(() => {
     if (viewMode === "transactions") nodes.current = {};
-  }, [effectiveMonthCount, monthWindowStart, viewMode]);
+  }, [settledTimelineRevision, viewMode]);
 
   useEffect(() => {
     let mounted = true;
@@ -331,7 +363,7 @@ export default function Home() {
     const tick = (time: number) => {
       const delta = Math.min(1.4, (time - last) / 16.67);
       last = time;
-      if (!frozen) {
+      if (!frozen && timelineGesture !== "pan") {
         const nodeList = visiblePoints.map(({ point, size }, index) => ({ node: nodes.current[point.id], point, size, index })).filter((entry) => entry.node);
         nodeList.forEach(({ node, point, index, size }) => {
           const seed = hash(point.id);
@@ -346,7 +378,7 @@ export default function Home() {
             const pnlRatio = pnlPosition[point.id] ?? 0.5;
             const laneJitter = (((seed >>> 18) % 100) / 100 - 0.5) * Math.min(12, stripWidth * 0.12);
             anchorY = verticalMargin + (1 - pnlRatio) * (sceneSize.height - verticalMargin * 2) + laneJitter;
-            pull = 0.008;
+            pull = 0.0055;
           } else {
             anchorX = physicsWidth * (0.08 + ((seed % 840) / 1000));
             anchorY = sceneSize.height * (0.11 + (((seed >>> 9) % 710) / 1000));
@@ -375,7 +407,7 @@ export default function Home() {
             const verticalMargin = Math.max(pnlScaleMargin, Math.min(94, size * 0.4));
             const pnlRatio = pnlPosition[point.id] ?? 0.5;
             const laneY = verticalMargin + (1 - pnlRatio) * (sceneSize.height - verticalMargin * 2);
-            const laneFreedom = Math.max(38, Math.min(94, size * 0.5));
+            const laneFreedom = Math.max(68, Math.min(180, size * 0.78));
             node.y = clamp(node.y, laneY - laneFreedom, laneY + laneFreedom);
           }
         });
@@ -385,7 +417,7 @@ export default function Home() {
     };
     frame.current = requestAnimationFrame(tick);
     return () => { if (frame.current) cancelAnimationFrame(frame.current); };
-  }, [effectiveMonthCount, frozen, monthWindowStart, physicsWidth, pnlPosition, pnlScaleMargin, repulsion, sceneSize, selectedId, timeline, viewMode, visiblePoints]);
+  }, [effectiveMonthCount, frozen, monthWindowStart, physicsWidth, pnlPosition, pnlScaleMargin, repulsion, sceneSize, selectedId, timeline, timelineGesture, viewMode, visiblePoints]);
 
   const importFile = useCallback((file?: File) => {
     if (!file) return;
@@ -401,11 +433,11 @@ export default function Home() {
   const focusOnRight = (focusNode?.x ?? 0) < sceneSize.width * 0.55;
 
   return (
-    <main className={darkMode ? "dark relative h-[100dvh] w-screen overflow-hidden bg-[#101617] text-stone-100" : "relative h-[100dvh] w-screen overflow-hidden bg-white text-stone-900"}>
-      {viewMode === "transactions" && <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">{pnlTicks.map((tick) => { const ratio = (tick + pnlBound) / (pnlBound * 2); return <div key={`grid-${tick}`} className={darkMode ? "absolute left-0 right-0 border-t border-[#20353b]/28" : "absolute left-0 right-0 border-t border-[#dbeef8]/34"} style={{ top: pnlScaleMargin + (1 - ratio) * (sceneSize.height - pnlScaleMargin * 2) }} />; })}{timeline.months.slice(monthWindowStart).map((month, index) => <div key={month} className={darkMode ? "absolute bottom-0 top-0 border-l border-[#284149]/42" : "absolute bottom-0 top-0 border-l border-[#edf7ff]/46"} style={{ left: index * (sceneSize.width / effectiveMonthCount) }}>{index % 3 === 0 && <span className={darkMode ? "absolute left-1 top-3 hidden font-mono text-[9px] font-medium tracking-[.12em] text-[#a6c2cc] md:block" : "absolute left-1 top-3 hidden font-mono text-[9px] font-medium tracking-[.12em] text-[#61869d] md:block"}>{labelMonth(month)}</span>}</div>)}{elapsedYearGuides.map((guide) => { const index = timeline.months.indexOf(guide.serial) - monthWindowStart; return <div key={`year-${guide.years}`} className="absolute bottom-0 top-0 w-[3px] bg-[#70b9e8] shadow-[0_0_0_1px_rgba(112,185,232,.14)]" style={{ left: index * (sceneSize.width / effectiveMonthCount) }}><span className="absolute left-1 top-8 whitespace-nowrap font-mono text-[8px] tracking-[.12em] text-[#4096cf]">{guide.years}y</span></div>; })}</div>}
+    <main className={darkMode ? "dark relative w-screen overflow-x-hidden bg-[#101617] text-stone-100" : "relative w-screen overflow-x-hidden bg-white text-stone-900"} style={{ minHeight: sceneSize.height }}>
+      {viewMode === "transactions" && <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden" style={{ transform: `translate3d(${timelinePanOffset}px, 0, 0)`, transition: timelineGesture === "pan" ? "transform 72ms linear" : "transform 180ms cubic-bezier(.23,1,.32,1)" }}>{pnlTicks.map((tick) => { const ratio = (tick + pnlBound) / (pnlBound * 2); return <div key={`grid-${tick}`} className={darkMode ? "absolute left-0 right-0 border-t border-[#20353b]/28" : "absolute left-0 right-0 border-t border-[#dbeef8]/34"} style={{ top: pnlScaleMargin + (1 - ratio) * (sceneSize.height - pnlScaleMargin * 2) }} />; })}{timeline.months.slice(monthWindowStart).map((month, index) => <div key={month} className={darkMode ? "absolute bottom-0 top-0 border-l border-[#284149]/42" : "absolute bottom-0 top-0 border-l border-[#edf7ff]/46"} style={{ left: index * (sceneSize.width / effectiveMonthCount) }}>{index % 3 === 0 && <span className={darkMode ? "absolute left-1 top-3 hidden font-mono text-[9px] font-medium tracking-[.12em] text-[#a6c2cc] md:block" : "absolute left-1 top-3 hidden font-mono text-[9px] font-medium tracking-[.12em] text-[#61869d] md:block"}>{labelMonth(month)}</span>}</div>)}{elapsedYearGuides.map((guide) => { const index = timeline.months.indexOf(guide.serial) - monthWindowStart; return <div key={`year-${guide.years}`} className="absolute bottom-0 top-0 w-[3px] bg-[#70b9e8] shadow-[0_0_0_1px_rgba(112,185,232,.14)]" style={{ left: index * (sceneSize.width / effectiveMonthCount) }}><span className="absolute left-1 top-8 whitespace-nowrap font-mono text-[8px] tracking-[.12em] text-[#4096cf]">{guide.years}y</span></div>; })}</div>}
       <button type="button" aria-label="Reset portfolio field" onPointerDown={(event) => event.stopPropagation()} onClick={resetViewport} className={darkMode ? "fixed right-5 top-[8.5rem] z-40 grid h-12 w-12 place-items-center rounded-full border border-[#49636a] bg-[#142022] text-stone-300 shadow-[0_10px_30px_-16px_rgba(0,0,0,.72)] transition hover:-translate-y-0.5 hover:border-[#D8AE37] hover:text-[#D8AE37] active:scale-95" : "fixed right-5 top-[8.5rem] z-40 grid h-12 w-12 place-items-center rounded-full border border-stone-200 bg-white text-stone-500 shadow-[0_10px_30px_-16px_rgba(41,37,36,.45)] transition hover:-translate-y-0.5 hover:border-[#D8AE37] hover:text-[#a87c12] active:scale-95"}><RotateCcw size={17} /></button>
       <div className="fixed bottom-11 left-1/2 z-40 -translate-x-1/2"><input aria-label="Find a company" value={companyQuery} onChange={(event) => setCompanyQuery(event.target.value)} onPointerDown={(event) => event.stopPropagation()} className={darkMode ? "w-[min(348px,calc(100vw-32px))] rounded-full border border-[#49636a] bg-[#142022] px-4 py-1.5 font-mono text-[9px] text-stone-100 shadow-[0_6px_18px_-12px_rgba(0,0,0,.8)] outline-none placeholder:text-stone-400 focus:border-[#D8AE37]" : "w-[min(348px,calc(100vw-32px))] rounded-full border border-stone-300 bg-white px-4 py-1.5 font-mono text-[9px] text-stone-700 shadow-[0_6px_18px_-12px_rgba(41,37,36,.28)] outline-none placeholder:text-stone-500 focus:border-[#D8AE37]"} placeholder="look what the cat brought in" /></div>
-      <section aria-label="Portfolio kitty field" className="absolute inset-0 z-10 touch-pan-y" onWheel={scrollTimeline} onPointerDown={beginTimelineDrag} onPointerMove={moveTimelineDrag} onPointerUp={endTimelineDrag} onPointerCancel={endTimelineDrag}>
+      <section aria-label="Portfolio kitty field" className="absolute inset-0 z-10 touch-pan-y" style={{ transform: `translate3d(${timelinePanOffset}px, 0, 0)`, transition: timelineGesture === "pan" ? "transform 72ms linear" : "transform 180ms cubic-bezier(.23,1,.32,1)" }} onWheel={scrollTimeline} onPointerDown={beginTimelineDrag} onPointerMove={moveTimelineDrag} onPointerUp={endTimelineDrag} onPointerCancel={endTimelineDrag}>
         {visiblePoints.map((entry) => {
           const node = nodes.current[entry.point.id]; if (!node) return null;
           const searchMatch = !searchTerm || entry.point.company.toLocaleLowerCase().includes(searchTerm);
