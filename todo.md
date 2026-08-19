@@ -1,0 +1,6 @@
+- [x] Locate and inspect the supplied Manus Storage kitty SVG asset.
+- [x] Confirm the portfolio contains shares and ETFs only, using the supplied transactions CSV.
+- [x] Extend the portfolio model with complete purchase-time support for the transaction chart.
+- [x] Implement absolute P&L percentile segmentation and #ff3b3b loss encoding.
+- [x] Add transaction-month strips and whole-year Helvetica age badges.
+- [x] Validate the revised field at desktop and mobile sizes.

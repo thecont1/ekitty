@@ -244,6 +244,8 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 
 .font-serif { font-family: "Fraunces", Georgia, serif; }
 
+.age-badge { font-family: Helvetica, Arial, sans-serif; font-size: clamp(8px, 1.1vw, 14px); font-weight: 700; line-height: 1; }
+
 .control-label { font-family: "DM Mono", ui-monospace, monospace; font-size: 9px; font-weight: 500; letter-spacing: .19em; text-transform: uppercase; color: #78716c; }
 
 .field-label { display: block; font-family: "DM Mono", ui-monospace, monospace; font-size: 10px; color: #57534e; }
