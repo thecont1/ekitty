@@ -1,0 +1,1276 @@
+[
+  {
+    "id": "lot-1",
+    "company": "Zen Technologies",
+    "buy_qty": 7,
+    "avg_price": 1482.1,
+    "current_price": 1932.6
+  },
+  {
+    "id": "lot-2",
+    "company": "Yes Bank",
+    "buy_qty": 150,
+    "avg_price": 24.03,
+    "current_price": 22.74
+  },
+  {
+    "id": "lot-3",
+    "company": "Yes Bank",
+    "buy_qty": 200,
+    "avg_price": 23.07,
+    "current_price": 22.74
+  },
+  {
+    "id": "lot-4",
+    "company": "Yes Bank",
+    "buy_qty": 250,
+    "avg_price": 21.15,
+    "current_price": 22.74
+  },
+  {
+    "id": "lot-5",
+    "company": "Whirlpool",
+    "buy_qty": 2,
+    "avg_price": 1356.85,
+    "current_price": 753.45
+  },
+  {
+    "id": "lot-6",
+    "company": "Whirlpool",
+    "buy_qty": 2,
+    "avg_price": 1338.98,
+    "current_price": 753.45
+  },
+  {
+    "id": "lot-7",
+    "company": "Whirlpool",
+    "buy_qty": 4,
+    "avg_price": 1816.55,
+    "current_price": 753.45
+  },
+  {
+    "id": "lot-8",
+    "company": "Walchandnagar Industries",
+    "buy_qty": 24,
+    "avg_price": 233.68,
+    "current_price": 221.86
+  },
+  {
+    "id": "lot-9",
+    "company": "Walchandnagar Industries",
+    "buy_qty": 23,
+    "avg_price": 201.12,
+    "current_price": 221.86
+  },
+  {
+    "id": "lot-10",
+    "company": "Walchandnagar Industries",
+    "buy_qty": 3,
+    "avg_price": 212.9,
+    "current_price": 221.86
+  },
+  {
+    "id": "lot-11",
+    "company": "Vodafone Idea",
+    "buy_qty": 240,
+    "avg_price": 6.68,
+    "current_price": 14.07
+  },
+  {
+    "id": "lot-12",
+    "company": "Vodafone Idea",
+    "buy_qty": 87,
+    "avg_price": 8.15,
+    "current_price": 14.07
+  },
+  {
+    "id": "lot-13",
+    "company": "Vodafone Idea",
+    "buy_qty": 153,
+    "avg_price": 8.1,
+    "current_price": 14.07
+  },
+  {
+    "id": "lot-14",
+    "company": "Vikram Solar",
+    "buy_qty": 18,
+    "avg_price": 164.52,
+    "current_price": 170.84
+  },
+  {
+    "id": "lot-15",
+    "company": "Vikram Solar",
+    "buy_qty": 20,
+    "avg_price": 184.65,
+    "current_price": 170.84
+  },
+  {
+    "id": "lot-16",
+    "company": "Vikram Solar",
+    "buy_qty": 19,
+    "avg_price": 211.09,
+    "current_price": 170.84
+  },
+  {
+    "id": "lot-17",
+    "company": "Vikram Solar",
+    "buy_qty": 11,
+    "avg_price": 199.74,
+    "current_price": 170.84
+  },
+  {
+    "id": "lot-18",
+    "company": "Varun Beverages",
+    "buy_qty": 15,
+    "avg_price": 476.75,
+    "current_price": 431.85
+  },
+  {
+    "id": "lot-19",
+    "company": "Varun Beverages",
+    "buy_qty": 12,
+    "avg_price": 462.68,
+    "current_price": 431.85
+  },
+  {
+    "id": "lot-20",
+    "company": "Ultratech Cement",
+    "buy_qty": 1,
+    "avg_price": 11510.71,
+    "current_price": 11450
+  },
+  {
+    "id": "lot-21",
+    "company": "Ultratech Cement",
+    "buy_qty": 1,
+    "avg_price": 12724.96,
+    "current_price": 11450
+  },
+  {
+    "id": "lot-22",
+    "company": "Tube Invest Of India",
+    "buy_qty": 2,
+    "avg_price": 2628.64,
+    "current_price": 2961
+  },
+  {
+    "id": "lot-23",
+    "company": "Tube Invest Of India",
+    "buy_qty": 3,
+    "avg_price": 2919.88,
+    "current_price": 2961
+  },
+  {
+    "id": "lot-24",
+    "company": "Tube Invest Of India",
+    "buy_qty": 1,
+    "avg_price": 3601.26,
+    "current_price": 2961
+  },
+  {
+    "id": "lot-25",
+    "company": "Tube Invest Of India",
+    "buy_qty": 2,
+    "avg_price": 3659.83,
+    "current_price": 2961
+  },
+  {
+    "id": "lot-26",
+    "company": "Titagarh Wagons",
+    "buy_qty": 13,
+    "avg_price": 779.91,
+    "current_price": 831.75
+  },
+  {
+    "id": "lot-27",
+    "company": "Titagarh Wagons",
+    "buy_qty": 11,
+    "avg_price": 795.79,
+    "current_price": 831.75
+  },
+  {
+    "id": "lot-28",
+    "company": "Titagarh Wagons",
+    "buy_qty": 6,
+    "avg_price": 888.9,
+    "current_price": 831.75
+  },
+  {
+    "id": "lot-29",
+    "company": "Titagarh Wagons",
+    "buy_qty": 9,
+    "avg_price": 1083.2,
+    "current_price": 831.75
+  },
+  {
+    "id": "lot-30",
+    "company": "Texmaco Rail & Engineering",
+    "buy_qty": 25,
+    "avg_price": 107.37,
+    "current_price": 102.65
+  },
+  {
+    "id": "lot-31",
+    "company": "Texmaco Rail & Engineering",
+    "buy_qty": 40,
+    "avg_price": 140.37,
+    "current_price": 102.65
+  },
+  {
+    "id": "lot-32",
+    "company": "Teamlease Services",
+    "buy_qty": 5,
+    "avg_price": 1382.71,
+    "current_price": 1235.2
+  },
+  {
+    "id": "lot-33",
+    "company": "Tata Motors Commercial Vehicles",
+    "buy_qty": 25,
+    "avg_price": 406.73,
+    "current_price": 478.3
+  },
+  {
+    "id": "lot-34",
+    "company": "Tata Consultancy Services",
+    "buy_qty": 2,
+    "avg_price": 2175.65,
+    "current_price": 2289
+  },
+  {
+    "id": "lot-35",
+    "company": "Tata Consultancy Services",
+    "buy_qty": 2,
+    "avg_price": 3133.04,
+    "current_price": 2289
+  },
+  {
+    "id": "lot-36",
+    "company": "Tata Consultancy Services",
+    "buy_qty": 1,
+    "avg_price": 3406.79,
+    "current_price": 2289
+  },
+  {
+    "id": "lot-37",
+    "company": "Tata Consultancy Services",
+    "buy_qty": 3,
+    "avg_price": 3725.08,
+    "current_price": 2289
+  },
+  {
+    "id": "lot-38",
+    "company": "Swiggy Limited",
+    "buy_qty": 10,
+    "avg_price": 356.15,
+    "current_price": 272.4
+  },
+  {
+    "id": "lot-39",
+    "company": "Swiggy Limited",
+    "buy_qty": 20,
+    "avg_price": 504,
+    "current_price": 272.4
+  },
+  {
+    "id": "lot-40",
+    "company": "Sun Pharmaceutical",
+    "buy_qty": 5,
+    "avg_price": 1617.5,
+    "current_price": 1900
+  },
+  {
+    "id": "lot-41",
+    "company": "Sun Pharmaceutical",
+    "buy_qty": 3,
+    "avg_price": 1753.49,
+    "current_price": 1900
+  },
+  {
+    "id": "lot-42",
+    "company": "Sun Pharmaceutical",
+    "buy_qty": 4,
+    "avg_price": 1594.15,
+    "current_price": 1900
+  },
+  {
+    "id": "lot-43",
+    "company": "Sumitomo Chemical",
+    "buy_qty": 20,
+    "avg_price": 426.33,
+    "current_price": 554.2
+  },
+  {
+    "id": "lot-44",
+    "company": "Saraswati Saree Depot Ltd",
+    "buy_qty": 50,
+    "avg_price": 66.56,
+    "current_price": 59.76
+  },
+  {
+    "id": "lot-45",
+    "company": "Saraswati Saree Depot Ltd",
+    "buy_qty": 14,
+    "avg_price": 100.36,
+    "current_price": 59.76
+  },
+  {
+    "id": "lot-46",
+    "company": "Saraswati Saree Depot Ltd",
+    "buy_qty": 24,
+    "avg_price": 141.25,
+    "current_price": 59.76
+  },
+  {
+    "id": "lot-47",
+    "company": "Saraswati Saree Depot Ltd",
+    "buy_qty": 12,
+    "avg_price": 171.84,
+    "current_price": 59.76
+  },
+  {
+    "id": "lot-48",
+    "company": "Reliance Industries",
+    "buy_qty": 8,
+    "avg_price": 1316.49,
+    "current_price": 1311
+  },
+  {
+    "id": "lot-49",
+    "company": "Reliance Industries",
+    "buy_qty": 7,
+    "avg_price": 1447.27,
+    "current_price": 1311
+  },
+  {
+    "id": "lot-50",
+    "company": "REC",
+    "buy_qty": 7,
+    "avg_price": 372.33,
+    "current_price": 337
+  },
+  {
+    "id": "lot-51",
+    "company": "REC",
+    "buy_qty": 10,
+    "avg_price": 361.31,
+    "current_price": 337
+  },
+  {
+    "id": "lot-52",
+    "company": "REC",
+    "buy_qty": 15,
+    "avg_price": 379.67,
+    "current_price": 337
+  },
+  {
+    "id": "lot-53",
+    "company": "RAYMOND REALTY LIMITED",
+    "buy_qty": 6,
+    "avg_price": 668.32,
+    "current_price": 572.6
+  },
+  {
+    "id": "lot-54",
+    "company": "RAYMOND REALTY LIMITED",
+    "buy_qty": 4,
+    "avg_price": 469.34,
+    "current_price": 572.6
+  },
+  {
+    "id": "lot-55",
+    "company": "RAYMOND REALTY LIMITED",
+    "buy_qty": 2,
+    "avg_price": 747.81,
+    "current_price": 572.6
+  },
+  {
+    "id": "lot-56",
+    "company": "Rail Vikas Nigam",
+    "buy_qty": 10,
+    "avg_price": 327.34,
+    "current_price": 223.5
+  },
+  {
+    "id": "lot-57",
+    "company": "Rail Vikas Nigam",
+    "buy_qty": 20,
+    "avg_price": 482.83,
+    "current_price": 223.5
+  },
+  {
+    "id": "lot-58",
+    "company": "Poonawalla Fincorp",
+    "buy_qty": 10,
+    "avg_price": 406.4,
+    "current_price": 493.3
+  },
+  {
+    "id": "lot-59",
+    "company": "Poonawalla Fincorp",
+    "buy_qty": 14,
+    "avg_price": 378.06,
+    "current_price": 493.3
+  },
+  {
+    "id": "lot-60",
+    "company": "Poonawalla Fincorp",
+    "buy_qty": 6,
+    "avg_price": 448.98,
+    "current_price": 493.3
+  },
+  {
+    "id": "lot-61",
+    "company": "Poonawalla Fincorp",
+    "buy_qty": 10,
+    "avg_price": 376.06,
+    "current_price": 493.3
+  },
+  {
+    "id": "lot-62",
+    "company": "Piramal Pharma Limited",
+    "buy_qty": 30,
+    "avg_price": 158.82,
+    "current_price": 209.64
+  },
+  {
+    "id": "lot-63",
+    "company": "Pine Labs",
+    "buy_qty": 30,
+    "avg_price": 157.43,
+    "current_price": 157.62
+  },
+  {
+    "id": "lot-64",
+    "company": "Pine Labs",
+    "buy_qty": 20,
+    "avg_price": 146.13,
+    "current_price": 157.62
+  },
+  {
+    "id": "lot-65",
+    "company": "Pine Labs",
+    "buy_qty": 30,
+    "avg_price": 153.59,
+    "current_price": 157.62
+  },
+  {
+    "id": "lot-66",
+    "company": "Pine Labs",
+    "buy_qty": 20,
+    "avg_price": 225.53,
+    "current_price": 157.62
+  },
+  {
+    "id": "lot-67",
+    "company": "Persistent Systems",
+    "buy_qty": 5,
+    "avg_price": 4364.38,
+    "current_price": 5510
+  },
+  {
+    "id": "lot-68",
+    "company": "Paras Defence & Space Tech",
+    "buy_qty": 4,
+    "avg_price": 636.81,
+    "current_price": 1496.4
+  },
+  {
+    "id": "lot-69",
+    "company": "Paras Defence & Space Tech",
+    "buy_qty": 4,
+    "avg_price": 725.07,
+    "current_price": 1496.4
+  },
+  {
+    "id": "lot-70",
+    "company": "OLA Electric Mobility",
+    "buy_qty": 100,
+    "avg_price": 44,
+    "current_price": 37.28
+  },
+  {
+    "id": "lot-71",
+    "company": "OLA Electric Mobility",
+    "buy_qty": 250,
+    "avg_price": 34.47,
+    "current_price": 37.28
+  },
+  {
+    "id": "lot-72",
+    "company": "OLA Electric Mobility",
+    "buy_qty": 225,
+    "avg_price": 49.11,
+    "current_price": 37.28
+  },
+  {
+    "id": "lot-73",
+    "company": "OLA Electric Mobility",
+    "buy_qty": 75,
+    "avg_price": 46.9,
+    "current_price": 37.28
+  },
+  {
+    "id": "lot-74",
+    "company": "OLA Electric Mobility",
+    "buy_qty": 195,
+    "avg_price": 76,
+    "current_price": 37.28
+  },
+  {
+    "id": "lot-75",
+    "company": "Oil India",
+    "buy_qty": 20,
+    "avg_price": 445.3,
+    "current_price": 474.85
+  },
+  {
+    "id": "lot-76",
+    "company": "NTPC",
+    "buy_qty": 13,
+    "avg_price": 344.76,
+    "current_price": 336.55
+  },
+  {
+    "id": "lot-77",
+    "company": "Nippon India Nifty Bees ETF",
+    "buy_qty": 88,
+    "avg_price": 273.59,
+    "current_price": 274.62
+  },
+  {
+    "id": "lot-78",
+    "company": "Neogen Chemicals Limited",
+    "buy_qty": 5,
+    "avg_price": 1318.92,
+    "current_price": 2328.8
+  },
+  {
+    "id": "lot-79",
+    "company": "Motilal Oswal Nasdaq ETF",
+    "buy_qty": 7,
+    "avg_price": 193.36,
+    "current_price": 336.38
+  },
+  {
+    "id": "lot-80",
+    "company": "Motilal Oswal Nasdaq ETF",
+    "buy_qty": 53,
+    "avg_price": 182.2,
+    "current_price": 336.38
+  },
+  {
+    "id": "lot-81",
+    "company": "Motilal Oswal Nasdaq ETF",
+    "buy_qty": 6,
+    "avg_price": 206.64,
+    "current_price": 336.38
+  },
+  {
+    "id": "lot-82",
+    "company": "Motilal Oswal Nasdaq ETF",
+    "buy_qty": 8,
+    "avg_price": 155.86,
+    "current_price": 336.38
+  },
+  {
+    "id": "lot-83",
+    "company": "Motilal Oswal Nasdaq ETF",
+    "buy_qty": 6,
+    "avg_price": 164.39,
+    "current_price": 336.38
+  },
+  {
+    "id": "lot-84",
+    "company": "Motilal Oswal Nasdaq ETF",
+    "buy_qty": 9,
+    "avg_price": 146.97,
+    "current_price": 336.38
+  },
+  {
+    "id": "lot-85",
+    "company": "Motilal Oswal Nasdaq ETF",
+    "buy_qty": 3,
+    "avg_price": 161.33,
+    "current_price": 336.38
+  },
+  {
+    "id": "lot-86",
+    "company": "Motilal Oswal Nasdaq ETF",
+    "buy_qty": 24,
+    "avg_price": 168.71,
+    "current_price": 336.38
+  },
+  {
+    "id": "lot-87",
+    "company": "Motilal Oswal Nasdaq ETF",
+    "buy_qty": 1,
+    "avg_price": 170.08,
+    "current_price": 336.38
+  },
+  {
+    "id": "lot-88",
+    "company": "Motilal Oswal Nasdaq ETF",
+    "buy_qty": 18,
+    "avg_price": 151.1,
+    "current_price": 336.38
+  },
+  {
+    "id": "lot-89",
+    "company": "Motilal Oswal Nasdaq ETF",
+    "buy_qty": 11,
+    "avg_price": 150.05,
+    "current_price": 336.38
+  },
+  {
+    "id": "lot-90",
+    "company": "Motilal Oswal Nasdaq ETF",
+    "buy_qty": 14,
+    "avg_price": 151.82,
+    "current_price": 336.38
+  },
+  {
+    "id": "lot-91",
+    "company": "Motilal Oswal Nasdaq ETF",
+    "buy_qty": 7,
+    "avg_price": 153.64,
+    "current_price": 336.38
+  },
+  {
+    "id": "lot-92",
+    "company": "Mirae Hang Seng Tech ETF",
+    "buy_qty": 1050,
+    "avg_price": 23.15,
+    "current_price": 23.19
+  },
+  {
+    "id": "lot-93",
+    "company": "MERCURY EV-TECH LIMITED",
+    "buy_qty": 250,
+    "avg_price": 35.68,
+    "current_price": 37.63
+  },
+  {
+    "id": "lot-94",
+    "company": "Mazagon Dock Shipbuilders",
+    "buy_qty": 10,
+    "avg_price": 2213.36,
+    "current_price": 2563.8
+  },
+  {
+    "id": "lot-95",
+    "company": "Lupin",
+    "buy_qty": 2,
+    "avg_price": 2131.02,
+    "current_price": 2225
+  },
+  {
+    "id": "lot-96",
+    "company": "Lupin",
+    "buy_qty": 3,
+    "avg_price": 1957.99,
+    "current_price": 2225
+  },
+  {
+    "id": "lot-97",
+    "company": "LT - Larsen & Toubro",
+    "buy_qty": 3,
+    "avg_price": 3626.86,
+    "current_price": 4041.3
+  },
+  {
+    "id": "lot-98",
+    "company": "LT - Larsen & Toubro",
+    "buy_qty": 1,
+    "avg_price": 3614.13,
+    "current_price": 4041.3
+  },
+  {
+    "id": "lot-99",
+    "company": "LT - Larsen & Toubro",
+    "buy_qty": 2,
+    "avg_price": 3582.5,
+    "current_price": 4041.3
+  },
+  {
+    "id": "lot-100",
+    "company": "Lodha Developers",
+    "buy_qty": 9,
+    "avg_price": 917.82,
+    "current_price": 1210
+  },
+  {
+    "id": "lot-101",
+    "company": "Lodha Developers",
+    "buy_qty": 4,
+    "avg_price": 945.54,
+    "current_price": 1210
+  },
+  {
+    "id": "lot-102",
+    "company": "Lodha Developers",
+    "buy_qty": 8,
+    "avg_price": 983.56,
+    "current_price": 1210
+  },
+  {
+    "id": "lot-103",
+    "company": "L&T Technology Services",
+    "buy_qty": 3,
+    "avg_price": 4631.78,
+    "current_price": 3540.9
+  },
+  {
+    "id": "lot-104",
+    "company": "Kotak Bank",
+    "buy_qty": 10,
+    "avg_price": 407.66,
+    "current_price": 390.25
+  },
+  {
+    "id": "lot-105",
+    "company": "Kotak Bank",
+    "buy_qty": 50,
+    "avg_price": 340.95,
+    "current_price": 390.25
+  },
+  {
+    "id": "lot-106",
+    "company": "Kaveri Seed Company",
+    "buy_qty": 10,
+    "avg_price": 885.65,
+    "current_price": 771.35
+  },
+  {
+    "id": "lot-107",
+    "company": "Kalpataru projects international",
+    "buy_qty": 7,
+    "avg_price": 1359.37,
+    "current_price": 1376.6
+  },
+  {
+    "id": "lot-108",
+    "company": "Jyothy Labs",
+    "buy_qty": 20,
+    "avg_price": 322.62,
+    "current_price": 207.88
+  },
+  {
+    "id": "lot-109",
+    "company": "Jyothy Labs",
+    "buy_qty": 10,
+    "avg_price": 338.23,
+    "current_price": 207.88
+  },
+  {
+    "id": "lot-110",
+    "company": "Jyothy Labs",
+    "buy_qty": 20,
+    "avg_price": 433.43,
+    "current_price": 207.88
+  },
+  {
+    "id": "lot-111",
+    "company": "Jupiter Wagons",
+    "buy_qty": 20,
+    "avg_price": 279.03,
+    "current_price": 248.5
+  },
+  {
+    "id": "lot-112",
+    "company": "Jupiter Wagons",
+    "buy_qty": 20,
+    "avg_price": 304.11,
+    "current_price": 248.5
+  },
+  {
+    "id": "lot-113",
+    "company": "Jupiter Wagons",
+    "buy_qty": 20,
+    "avg_price": 258.76,
+    "current_price": 248.5
+  },
+  {
+    "id": "lot-114",
+    "company": "Jupiter Wagons",
+    "buy_qty": 20,
+    "avg_price": 329.88,
+    "current_price": 248.5
+  },
+  {
+    "id": "lot-115",
+    "company": "Jubilant Life Science",
+    "buy_qty": 5,
+    "avg_price": 992.64,
+    "current_price": 868
+  },
+  {
+    "id": "lot-116",
+    "company": "Jubilant Life Science",
+    "buy_qty": 5,
+    "avg_price": 957.38,
+    "current_price": 868
+  },
+  {
+    "id": "lot-117",
+    "company": "JSW Steel",
+    "buy_qty": 4,
+    "avg_price": 1058.09,
+    "current_price": 1285.8
+  },
+  {
+    "id": "lot-118",
+    "company": "JSW Infrastructure",
+    "buy_qty": 20,
+    "avg_price": 264.88,
+    "current_price": 329.9
+  },
+  {
+    "id": "lot-119",
+    "company": "JSW Infrastructure",
+    "buy_qty": 20,
+    "avg_price": 269.02,
+    "current_price": 329.9
+  },
+  {
+    "id": "lot-120",
+    "company": "JSW Energy",
+    "buy_qty": 12,
+    "avg_price": 479.22,
+    "current_price": 543.95
+  },
+  {
+    "id": "lot-121",
+    "company": "JSW Energy",
+    "buy_qty": 8,
+    "avg_price": 517.78,
+    "current_price": 543.95
+  },
+  {
+    "id": "lot-122",
+    "company": "JSW Cement",
+    "buy_qty": 26,
+    "avg_price": 151.25,
+    "current_price": 123.66
+  },
+  {
+    "id": "lot-123",
+    "company": "Jio Financial Services",
+    "buy_qty": 12,
+    "avg_price": 241.6,
+    "current_price": 243.15
+  },
+  {
+    "id": "lot-124",
+    "company": "Jio Financial Services",
+    "buy_qty": 12,
+    "avg_price": 286.21,
+    "current_price": 243.15
+  },
+  {
+    "id": "lot-125",
+    "company": "Jio Financial Services",
+    "buy_qty": 12,
+    "avg_price": 317.34,
+    "current_price": 243.15
+  },
+  {
+    "id": "lot-126",
+    "company": "JBM Auto",
+    "buy_qty": 10,
+    "avg_price": 556.96,
+    "current_price": 618.65
+  },
+  {
+    "id": "lot-127",
+    "company": "JBM Auto",
+    "buy_qty": 11,
+    "avg_price": 576.52,
+    "current_price": 618.65
+  },
+  {
+    "id": "lot-128",
+    "company": "JBM Auto",
+    "buy_qty": 6,
+    "avg_price": 629.78,
+    "current_price": 618.65
+  },
+  {
+    "id": "lot-129",
+    "company": "JBM Auto",
+    "buy_qty": 9,
+    "avg_price": 646.09,
+    "current_price": 618.65
+  },
+  {
+    "id": "lot-130",
+    "company": "JBM Auto",
+    "buy_qty": 6,
+    "avg_price": 708.67,
+    "current_price": 618.65
+  },
+  {
+    "id": "lot-131",
+    "company": "JBM Auto",
+    "buy_qty": 8,
+    "avg_price": 808.92,
+    "current_price": 618.65
+  },
+  {
+    "id": "lot-132",
+    "company": "JBM Auto",
+    "buy_qty": 4,
+    "avg_price": 1035.6,
+    "current_price": 618.65
+  },
+  {
+    "id": "lot-133",
+    "company": "IZMO",
+    "buy_qty": 5,
+    "avg_price": 978.54,
+    "current_price": 871.55
+  },
+  {
+    "id": "lot-134",
+    "company": "IRFC",
+    "buy_qty": 24,
+    "avg_price": 113.06,
+    "current_price": 85.18
+  },
+  {
+    "id": "lot-135",
+    "company": "IRFC",
+    "buy_qty": 36,
+    "avg_price": 138.62,
+    "current_price": 85.18
+  },
+  {
+    "id": "lot-136",
+    "company": "IRFC",
+    "buy_qty": 27,
+    "avg_price": 159.07,
+    "current_price": 85.18
+  },
+  {
+    "id": "lot-137",
+    "company": "IRFC",
+    "buy_qty": 32,
+    "avg_price": 179.38,
+    "current_price": 85.18
+  },
+  {
+    "id": "lot-138",
+    "company": "IRFC",
+    "buy_qty": 15,
+    "avg_price": 186.54,
+    "current_price": 85.18
+  },
+  {
+    "id": "lot-139",
+    "company": "Intellect Design Arena",
+    "buy_qty": 5,
+    "avg_price": 770.24,
+    "current_price": 678.45
+  },
+  {
+    "id": "lot-140",
+    "company": "Inox India",
+    "buy_qty": 8,
+    "avg_price": 1113.15,
+    "current_price": 1930.3
+  },
+  {
+    "id": "lot-141",
+    "company": "Infosys",
+    "buy_qty": 7,
+    "avg_price": 1437.86,
+    "current_price": 1119.8
+  },
+  {
+    "id": "lot-142",
+    "company": "Infosys",
+    "buy_qty": 4,
+    "avg_price": 1619.87,
+    "current_price": 1119.8
+  },
+  {
+    "id": "lot-143",
+    "company": "Infosys",
+    "buy_qty": 4,
+    "avg_price": 1459.54,
+    "current_price": 1119.8
+  },
+  {
+    "id": "lot-144",
+    "company": "Indus Towers Ltd",
+    "buy_qty": 15,
+    "avg_price": 416.33,
+    "current_price": 372.4
+  },
+  {
+    "id": "lot-145",
+    "company": "Indian Renewable Energy",
+    "buy_qty": 50,
+    "avg_price": 122.19,
+    "current_price": 113.92
+  },
+  {
+    "id": "lot-146",
+    "company": "Indian Overseas Bank",
+    "buy_qty": 148,
+    "avg_price": 38.05,
+    "current_price": 33.18
+  },
+  {
+    "id": "lot-147",
+    "company": "Indian Overseas Bank",
+    "buy_qty": 2,
+    "avg_price": 54.96,
+    "current_price": 33.18
+  },
+  {
+    "id": "lot-148",
+    "company": "Indian Overseas Bank",
+    "buy_qty": 150,
+    "avg_price": 54.73,
+    "current_price": 33.18
+  },
+  {
+    "id": "lot-149",
+    "company": "Ideaforge technology",
+    "buy_qty": 16,
+    "avg_price": 462.61,
+    "current_price": 825.2
+  },
+  {
+    "id": "lot-150",
+    "company": "Ideaforge technology",
+    "buy_qty": 15,
+    "avg_price": 591.77,
+    "current_price": 825.2
+  },
+  {
+    "id": "lot-151",
+    "company": "Hindustan Aeronautics",
+    "buy_qty": 3,
+    "avg_price": 4408.66,
+    "current_price": 5017
+  },
+  {
+    "id": "lot-152",
+    "company": "HDFC Life",
+    "buy_qty": 12,
+    "avg_price": 610.54,
+    "current_price": 536.3
+  },
+  {
+    "id": "lot-153",
+    "company": "HDFC Bank",
+    "buy_qty": 45,
+    "avg_price": 806.69,
+    "current_price": 720
+  },
+  {
+    "id": "lot-154",
+    "company": "HDB Financial Services",
+    "buy_qty": 5,
+    "avg_price": 772.04,
+    "current_price": 681.1
+  },
+  {
+    "id": "lot-155",
+    "company": "HDB Financial Services",
+    "buy_qty": 5,
+    "avg_price": 795.93,
+    "current_price": 681.1
+  },
+  {
+    "id": "lot-156",
+    "company": "HCL Technologies",
+    "buy_qty": 12,
+    "avg_price": 1355.48,
+    "current_price": 1324.8
+  },
+  {
+    "id": "lot-157",
+    "company": "Gujarat Mineral Dev Corp",
+    "buy_qty": 16,
+    "avg_price": 564.81,
+    "current_price": 557.75
+  },
+  {
+    "id": "lot-158",
+    "company": "Gujarat Mineral Dev Corp",
+    "buy_qty": 14,
+    "avg_price": 327.49,
+    "current_price": 557.75
+  },
+  {
+    "id": "lot-159",
+    "company": "Gravita India",
+    "buy_qty": 5,
+    "avg_price": 1662.02,
+    "current_price": 1793.1
+  },
+  {
+    "id": "lot-160",
+    "company": "GEM AROMATICS LIMITED",
+    "buy_qty": 20,
+    "avg_price": 153.59,
+    "current_price": 175.55
+  },
+  {
+    "id": "lot-161",
+    "company": "GEM AROMATICS LIMITED",
+    "buy_qty": 10,
+    "avg_price": 271.31,
+    "current_price": 175.55
+  },
+  {
+    "id": "lot-162",
+    "company": "GEM AROMATICS LIMITED",
+    "buy_qty": 10,
+    "avg_price": 329.67,
+    "current_price": 175.55
+  },
+  {
+    "id": "lot-163",
+    "company": "Garden Reach Shipbuilders",
+    "buy_qty": 5,
+    "avg_price": 1942.27,
+    "current_price": 2638.3
+  },
+  {
+    "id": "lot-164",
+    "company": "Euro Pratik Sales",
+    "buy_qty": 60,
+    "avg_price": 247,
+    "current_price": 268.15
+  },
+  {
+    "id": "lot-165",
+    "company": "Datamatics Global Services",
+    "buy_qty": 10,
+    "avg_price": 797.03,
+    "current_price": 817.1
+  },
+  {
+    "id": "lot-166",
+    "company": "Coforge Limited",
+    "buy_qty": 5,
+    "avg_price": 1421.73,
+    "current_price": 1813.1
+  },
+  {
+    "id": "lot-167",
+    "company": "Bikaji Foods International",
+    "buy_qty": 4,
+    "avg_price": 620.55,
+    "current_price": 609.15
+  },
+  {
+    "id": "lot-168",
+    "company": "Bikaji Foods International",
+    "buy_qty": 5,
+    "avg_price": 733.17,
+    "current_price": 609.15
+  },
+  {
+    "id": "lot-169",
+    "company": "Bikaji Foods International",
+    "buy_qty": 5,
+    "avg_price": 783.96,
+    "current_price": 609.15
+  },
+  {
+    "id": "lot-170",
+    "company": "Au Small Finance Bank",
+    "buy_qty": 6,
+    "avg_price": 621.27,
+    "current_price": 1075
+  },
+  {
+    "id": "lot-171",
+    "company": "Astral Poly Tech",
+    "buy_qty": 4,
+    "avg_price": 1411.26,
+    "current_price": 1544.9
+  },
+  {
+    "id": "lot-172",
+    "company": "Astral Poly Tech",
+    "buy_qty": 1,
+    "avg_price": 1971.43,
+    "current_price": 1544.9
+  },
+  {
+    "id": "lot-173",
+    "company": "Anant Raj",
+    "buy_qty": 8,
+    "avg_price": 545.63,
+    "current_price": 631.55
+  },
+  {
+    "id": "lot-174",
+    "company": "Anant Raj",
+    "buy_qty": 10,
+    "avg_price": 551.56,
+    "current_price": 631.55
+  },
+  {
+    "id": "lot-175",
+    "company": "Anant Raj",
+    "buy_qty": 10,
+    "avg_price": 548.5,
+    "current_price": 631.55
+  },
+  {
+    "id": "lot-176",
+    "company": "Anant Raj",
+    "buy_qty": 12,
+    "avg_price": 532.62,
+    "current_price": 631.55
+  },
+  {
+    "id": "lot-177",
+    "company": "Amara Raja Energy & Mobility",
+    "buy_qty": 9,
+    "avg_price": 849.3,
+    "current_price": 928.55
+  },
+  {
+    "id": "lot-178",
+    "company": "Amara Raja Energy & Mobility",
+    "buy_qty": 7,
+    "avg_price": 851.17,
+    "current_price": 928.55
+  },
+  {
+    "id": "lot-179",
+    "company": "Amara Raja Energy & Mobility",
+    "buy_qty": 7,
+    "avg_price": 922.73,
+    "current_price": 928.55
+  },
+  {
+    "id": "lot-180",
+    "company": "Amara Raja Energy & Mobility",
+    "buy_qty": 7,
+    "avg_price": 1033.7,
+    "current_price": 928.55
+  },
+  {
+    "id": "lot-181",
+    "company": "Affle 3i",
+    "buy_qty": 3,
+    "avg_price": 1637.02,
+    "current_price": 1693.8
+  },
+  {
+    "id": "lot-182",
+    "company": "Aether Industries",
+    "buy_qty": 5,
+    "avg_price": 1323.93,
+    "current_price": 1640.1
+  }
+]
