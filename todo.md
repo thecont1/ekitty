@@ -15,3 +15,6 @@
 - [x] Add a light/dark mode switch and lower the hamburger below the month labels.
 - [x] Validate the corrected transaction placement and appearance controls.
 - [x] Add and verify the linked Mahesh Shantaram / thecontrarian.in copyright notice.
+- [x] Add date-first, full-value transaction tooltips.
+- [x] Replace transaction click detail cards with same-stock focus.
+- [x] Build and validate a scrollable 24-month maximum transaction window.
