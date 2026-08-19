@@ -63,18 +63,18 @@ function percentileRanks(points: PortfolioPoint[], metric: ColorMetric) {
 }
 
 function treatmentFor(point: PortfolioPoint, percentile: number): FillTreatment {
-  if (percentile < 2) return { fill: "transparent", ink: "#8da0a9", fillOpacity: 0, segment: "<p2", neutral: true };
+  if (Math.abs(point.pnl) < 50 || percentile < 2) return { fill: "transparent", ink: "#8da0a9", fillOpacity: 0, segment: "<p2", neutral: true };
   if (percentile <= 5) {
-    const target = point.pnl >= 0 ? GAIN_GREEN : LOSS_RED;
-    const pale = point.pnl >= 0 ? "#effaf4" : "#fff1f1";
+    const target = point.pnl >= 0 ? LOSS_RED : GAIN_GREEN;
+    const pale = point.pnl >= 0 ? "#fff1f1" : "#effaf4";
     return { fill: mixHex(pale, target, 0.12), ink: mixHex("#8da0a9", target, 0.18), fillOpacity: 0.12, segment: "p5", neutral: false };
   }
   const stops = [5, 10, 25, 50, 75, 90, 95, 98];
   const stopIndex = stops.findIndex((stop) => percentile <= stop);
   const intensity = clamp((stopIndex + 2) / (stops.length + 1), 0.2, 1);
   const positive = point.pnl >= 0;
-  const target = positive ? GAIN_GREEN : LOSS_RED;
-  const pale = positive ? "#effaf4" : "#fff1f1";
+  const target = positive ? LOSS_RED : GAIN_GREEN;
+  const pale = positive ? "#fff1f1" : "#effaf4";
   return {
     fill: mixHex(pale, target, intensity),
     ink: mixHex("#87969b", target, 0.45 + intensity * 0.55),
@@ -115,8 +115,7 @@ function createTimeline(points: PortfolioPoint[]): Timeline {
   return { months, indexFor, hasDates: dated.length > 0 };
 }
 
-function CatGlyph({ point, size, stroke, treatment, bobDuration, focused, frozen, showAgeBadge, onHover, onLeave, onClick }: VisiblePoint & { focused: boolean; frozen: boolean; showAgeBadge: boolean; onHover: () => void; onLeave: () => void; onClick: () => void }) {
-  const yearsHeld = Math.floor((point.ageDays ?? 0) / 365);
+function CatGlyph({ point, size, stroke, treatment, bobDuration, focused, frozen, onHover, onLeave, onClick }: VisiblePoint & { focused: boolean; frozen: boolean; onHover: () => void; onLeave: () => void; onClick: () => void }) {
   const variation = hash(point.id);
   const lean = (variation % 11) - 5;
   const widthScale = 0.93 + ((variation >>> 5) % 13) / 100;
@@ -133,7 +132,6 @@ function CatGlyph({ point, size, stroke, treatment, bobDuration, focused, frozen
           <PortfolioKittySvg stroke={treatment.ink} fill={treatment.fill} fillOpacity={treatment.fillOpacity} strokeWidth={stroke} className="block h-full w-full overflow-visible" />
           <svg viewBox="0 0 192 192" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" aria-hidden="true"><path d={tailArc} fill="none" stroke={treatment.ink} strokeWidth={Math.max(1.1, stroke * 0.68)} strokeLinecap="round" /></svg>
           {point.taxSensitive && <span className="absolute left-[42%] top-[53%] h-[16%] w-[16%] rounded-full border border-[#D8AE37]" />}
-          {showAgeBadge && yearsHeld >= 1 && <span className="age-badge absolute right-[16%] top-[8%] grid min-h-3 min-w-3 place-items-center text-[rgba(41,37,36,.74)] [text-shadow:0_1px_0_rgba(255,255,255,.85)]">{yearsHeld}</span>}
           {point.isETF && <span className="absolute left-[54%] top-[60%] rounded-sm border border-[#9AA5AA] bg-white/95 px-[7%] py-[2%] font-mono text-[7px] font-semibold tracking-[.08em] text-stone-700 shadow-[0_1px_3px_rgba(41,37,36,.12)]">ETF</span>}
         </span>
       </span>
@@ -151,7 +149,6 @@ export default function Home() {
   const [colorMetric, setColorMetric] = useState<ColorMetric>("absolute");
   const [taxFilter, setTaxFilter] = useState<TaxFilter>("all");
   const [showEtfs, setShowEtfs] = useState(true);
-  const [showAgeBadges, setShowAgeBadges] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
   const [repulsion, setRepulsion] = useState(0.62);
   const [frozen, setFrozen] = useState(false);
@@ -186,24 +183,39 @@ export default function Home() {
   const fieldPoints = useMemo(() => viewMode === "transactions" ? transactionWindowPoints : filteredPoints, [filteredPoints, transactionWindowPoints, viewMode]);
   const physicsWidth = sceneSize.width;
   const pnlScaleMargin = sceneSize.width < 640 ? 78 : 108;
-  const pnlBound = useMemo(() => Math.max(1, ...fieldPoints.map((point) => Math.abs(point.pnl))), [fieldPoints]);
-  const pnlTicks = useMemo(() => [-pnlBound, -pnlBound / 2, 0, pnlBound / 2, pnlBound], [pnlBound]);
+  const pnlBound = useMemo(() => Math.max(5_000, Math.ceil(Math.max(1, ...fieldPoints.map((point) => Math.abs(point.pnl))) / 5_000) * 5_000), [fieldPoints]);
+  const pnlTicks = useMemo(() => Array.from({ length: (pnlBound / 5_000) * 2 + 1 }, (_, index) => -pnlBound + index * 5_000), [pnlBound]);
   const rankings = useMemo(() => percentileRanks(fieldPoints, colorMetric), [colorMetric, fieldPoints]);
 
   const visiblePoints = useMemo<VisiblePoint[]>(() => {
-    const values = fieldPoints.map((point) => point.currentValue ** 1.18);
+    const values = fieldPoints.map((point) => point.investedValue ** 1.14);
     const min = Math.min(...values, 0);
     const max = Math.max(...values, 1);
     const maxQty = Math.max(...fieldPoints.map((point) => point.qty), 1);
     const compactField = sceneSize.width < 640;
-    const minSize = compactField ? (viewMode === "transactions" ? 17 : 24) : (viewMode === "transactions" ? 25 : 34);
-    const maxSize = compactField ? (viewMode === "transactions" ? 70 : 106) : (viewMode === "transactions" ? 118 : 220);
-    return fieldPoints.map((point) => ({ point, size: scale(point.currentValue ** 1.18, min, max, minSize, maxSize), stroke: scale(point.qty, 0, maxQty, 1.65, 4.5), treatment: treatmentFor(point, rankings[point.id] ?? 0), bobDuration: clamp(3.6 - Math.min(1.75, Math.abs(point.pnlPercent) / 35), 1.7, 3.6) }));
+    const minSize = compactField ? (viewMode === "transactions" ? 28 : 38) : (viewMode === "transactions" ? 34 : 46);
+    const maxSize = compactField ? (viewMode === "transactions" ? 140 : 212) : (viewMode === "transactions" ? 236 : 440);
+    return fieldPoints.map((point) => ({ point, size: scale(point.investedValue ** 1.14, min, max, minSize, maxSize), stroke: scale(point.qty, 0, maxQty, 1.65, 4.5), treatment: treatmentFor(point, rankings[point.id] ?? 0), bobDuration: clamp(3.6 - Math.min(1.75, Math.abs(point.pnlPercent) / 35), 1.7, 3.6) }));
   }, [fieldPoints, rankings, sceneSize.width, viewMode]);
 
   const selected = visiblePoints.find((entry) => entry.point.id === selectedId)?.point ?? null;
   const hovered = visiblePoints.find((entry) => entry.point.id === hoveredId)?.point ?? null;
   const searchTerm = companyQuery.trim().toLocaleLowerCase();
+  const elapsedYearGuides = useMemo(() => {
+    const now = new Date();
+    const currentSerial = now.getFullYear() * 12 + now.getMonth();
+    return Array.from({ length: 12 }, (_, index) => index + 1).map((years) => ({ years, serial: currentSerial - years * 12 })).filter((guide) => timeline.months.includes(guide.serial) && timeline.months.indexOf(guide.serial) >= monthWindowStart);
+  }, [monthWindowStart, timeline]);
+
+  const resetViewport = useCallback(() => {
+    setVisibleMonthCount(monthMaximum);
+    setFocusedCompany(null);
+    setCompanyQuery("");
+    setTaxFilter("all");
+    setHoveredId(null);
+    setSelectedId(null);
+    nodes.current = {};
+  }, [monthMaximum]);
 
   const beginTimelineDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
     if (viewMode !== "transactions") return;
@@ -311,8 +323,8 @@ export default function Home() {
           if (point.id === selectedId) { node.vx += (physicsWidth * 0.5 - node.x) * 0.0028 * delta; node.vy += (sceneSize.height * 0.5 - node.y) * 0.0028 * delta; }
         });
         for (let left = 0; left < nodeList.length; left += 1) for (let right = left + 1; right < nodeList.length; right += 1) {
-          const a = nodeList[left]; const b = nodeList[right]; const dx = b.node.x - a.node.x; const dy = b.node.y - a.node.y; const distance = Math.max(Math.hypot(dx, dy), 0.01); const desired = (a.size + b.size) * 0.43 + 14;
-          if (distance < desired) { const force = ((desired - distance) / desired) * 0.88 * repulsion * delta; const nx = dx / distance; const ny = dy / distance; a.node.vx -= nx * force; a.node.vy -= ny * force; b.node.vx += nx * force; b.node.vy += ny * force; }
+          const a = nodeList[left]; const b = nodeList[right]; const dx = b.node.x - a.node.x; const dy = b.node.y - a.node.y; const distance = Math.max(Math.hypot(dx, dy), 0.01); const desired = (a.size + b.size) * 0.58 + 18;
+          if (distance < desired) { const force = ((desired - distance) / desired) * 1.08 * repulsion * delta; const nx = dx / distance; const ny = dy / distance; a.node.vx -= nx * force; a.node.vy -= ny * force; b.node.vx += nx * force; b.node.vy += ny * force; }
         }
         nodeList.forEach(({ node, size, point }) => {
           const margin = Math.max(42, size * 0.62);
@@ -324,10 +336,12 @@ export default function Home() {
             const monthIndex = (timeline.indexFor[point.id] ?? 0) - monthWindowStart;
             const edge = Math.min(Math.max(3, size * 0.08), stripWidth * 0.18);
             node.x = clamp(node.x, monthIndex * stripWidth + edge, (monthIndex + 1) * stripWidth - edge);
+            if (monthIndex === 0) node.x = Math.max(node.x, size * 0.42);
+            if (monthIndex === effectiveMonthCount - 1) node.x = Math.min(node.x, sceneSize.width - size * 0.42);
             const verticalMargin = Math.max(pnlScaleMargin, Math.min(126, size * 0.78));
             const pnlRatio = clamp((point.pnl + pnlBound) / (pnlBound * 2), 0, 1);
             const laneY = verticalMargin + (1 - pnlRatio) * (sceneSize.height - verticalMargin * 2);
-            const laneFreedom = Math.max(18, Math.min(38, size * 0.34));
+            const laneFreedom = Math.max(24, Math.min(58, size * 0.44));
             node.y = clamp(node.y, laneY - laneFreedom, laneY + laneFreedom);
           }
         });
@@ -354,15 +368,15 @@ export default function Home() {
 
   return (
     <main className={darkMode ? "dark relative h-[100dvh] w-screen overflow-hidden bg-[#101617] text-stone-100" : "relative h-[100dvh] w-screen overflow-hidden bg-white text-stone-900"}>
-      {viewMode === "transactions" && <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">{timeline.months.slice(monthWindowStart).map((month, index) => <div key={month} className={darkMode ? "absolute bottom-0 top-0 border-l border-[#284149]" : "absolute bottom-0 top-0 border-l border-[#edf7ff]"} style={{ left: index * (sceneSize.width / effectiveMonthCount) }}>{index % 3 === 0 && <span className={darkMode ? "absolute left-1 top-3 hidden font-mono text-[8px] tracking-[.12em] text-[#77949e] md:block" : "absolute left-1 top-3 hidden font-mono text-[8px] tracking-[.12em] text-[#c3dff5] md:block"}>{labelMonth(month)}</span>}</div>)}</div>}
+      {viewMode === "transactions" && <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">{pnlTicks.map((tick) => { const ratio = (tick + pnlBound) / (pnlBound * 2); return <div key={`grid-${tick}`} className={darkMode ? "absolute left-0 right-0 border-t border-[#20353b]/45" : "absolute left-0 right-0 border-t border-[#dbeef8]/55"} style={{ top: pnlScaleMargin + (1 - ratio) * (sceneSize.height - pnlScaleMargin * 2) }} />; })}{timeline.months.slice(monthWindowStart).map((month, index) => <div key={month} className={darkMode ? "absolute bottom-0 top-0 border-l border-[#284149]/65" : "absolute bottom-0 top-0 border-l border-[#edf7ff]/70"} style={{ left: index * (sceneSize.width / effectiveMonthCount) }}>{index % 3 === 0 && <span className={darkMode ? "absolute left-1 top-3 hidden font-mono text-[8px] tracking-[.12em] text-[#77949e] md:block" : "absolute left-1 top-3 hidden font-mono text-[8px] tracking-[.12em] text-[#c3dff5] md:block"}>{labelMonth(month)}</span>}</div>)}{elapsedYearGuides.map((guide) => { const index = timeline.months.indexOf(guide.serial) - monthWindowStart; return <div key={`year-${guide.years}`} className="absolute bottom-0 top-0 w-[3px] bg-[#70b9e8] shadow-[0_0_0_1px_rgba(112,185,232,.14)]" style={{ left: index * (sceneSize.width / effectiveMonthCount) }}><span className="absolute left-1 top-8 whitespace-nowrap font-mono text-[8px] tracking-[.12em] text-[#4096cf]">{guide.years}y</span></div>; })}</div>}
       {viewMode === "transactions" && <aside aria-label="Unrealized profit and loss scale" className="pointer-events-none absolute inset-y-0 left-0 z-20 hidden w-28 md:block"><div className={darkMode ? "absolute left-5 w-px bg-[#4b6269]" : "absolute left-5 w-px bg-[#cbdde7]"} style={{ top: pnlScaleMargin, height: sceneSize.height - pnlScaleMargin * 2 }}><span className={darkMode ? "absolute -left-1 top-0 -translate-y-5 whitespace-nowrap font-mono text-[8px] tracking-[.16em] text-[#77949e]" : "absolute -left-1 top-0 -translate-y-5 whitespace-nowrap font-mono text-[8px] tracking-[.16em] text-[#9bbacb]"}>P&amp;L · ₹</span>{pnlTicks.map((tick) => { const ratio = (tick + pnlBound) / (pnlBound * 2); return <div key={tick} className="absolute left-0 flex items-center" style={{ top: `${(1 - ratio) * 100}%` }}><span className={darkMode ? "absolute left-3 -translate-y-1/2 whitespace-nowrap font-mono text-[9px] tabular-nums text-[#86a2ab]" : "absolute left-3 -translate-y-1/2 whitespace-nowrap font-mono text-[9px] tabular-nums text-[#8eacbd]"}>{formatCurrency(tick)}</span><i className={darkMode ? "h-px w-2 bg-[#4b6269]" : "h-px w-2 bg-[#cbdde7]"} /></div>; })}</div></aside>}
-      <input aria-label="Find a company" value={companyQuery} onChange={(event) => setCompanyQuery(event.target.value)} onPointerDown={(event) => event.stopPropagation()} className={darkMode ? "fixed left-5 top-11 z-40 w-[min(272px,calc(100vw-96px))] rounded-full border border-[#49636a] bg-[#142022] px-4 py-2.5 font-mono text-[10px] text-stone-100 shadow-[0_7px_22px_-14px_rgba(0,0,0,.7)] outline-none placeholder:text-stone-400 focus:border-[#D8AE37]" : "fixed left-5 top-11 z-40 w-[min(272px,calc(100vw-96px))] rounded-full border border-stone-300 bg-white px-4 py-2.5 font-mono text-[10px] text-stone-700 shadow-[0_7px_22px_-14px_rgba(41,37,36,.25)] outline-none placeholder:text-stone-500 focus:border-[#D8AE37]"} placeholder="look what the cat brought in" />
+      <div className="fixed bottom-11 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2"><button type="button" aria-label="Reset portfolio field" onPointerDown={(event) => event.stopPropagation()} onClick={resetViewport} className={darkMode ? "grid h-7 w-7 place-items-center rounded-full border border-[#49636a] bg-[#142022] text-stone-300 shadow-[0_6px_18px_-12px_rgba(0,0,0,.8)] transition hover:border-[#D8AE37] hover:text-[#D8AE37]" : "grid h-7 w-7 place-items-center rounded-full border border-stone-300 bg-white text-stone-500 shadow-[0_6px_18px_-12px_rgba(41,37,36,.28)] transition hover:border-[#D8AE37] hover:text-[#a87c12]"}><RotateCcw size={12} /></button><input aria-label="Find a company" value={companyQuery} onChange={(event) => setCompanyQuery(event.target.value)} onPointerDown={(event) => event.stopPropagation()} className={darkMode ? "w-[min(348px,calc(100vw-118px))] rounded-full border border-[#49636a] bg-[#142022] px-4 py-1.5 font-mono text-[9px] text-stone-100 shadow-[0_6px_18px_-12px_rgba(0,0,0,.8)] outline-none placeholder:text-stone-400 focus:border-[#D8AE37]" : "w-[min(348px,calc(100vw-118px))] rounded-full border border-stone-300 bg-white px-4 py-1.5 font-mono text-[9px] text-stone-700 shadow-[0_6px_18px_-12px_rgba(41,37,36,.28)] outline-none placeholder:text-stone-500 focus:border-[#D8AE37]"} placeholder="look what the cat brought in" /></div>
       <section aria-label="Portfolio kitty field" className="absolute inset-0 z-10 touch-pan-y" onWheel={scrollTimeline} onPointerDown={beginTimelineDrag} onPointerMove={moveTimelineDrag} onPointerUp={endTimelineDrag} onPointerCancel={endTimelineDrag}>
         {visiblePoints.map((entry) => {
           const node = nodes.current[entry.point.id]; if (!node) return null;
           const searchMatch = !searchTerm || entry.point.company.toLocaleLowerCase().includes(searchTerm);
           const muted = (taxFilter === "highlight" && !entry.point.taxSensitive) || (viewMode === "transactions" && focusedCompany !== null && entry.point.company !== focusedCompany) || !searchMatch;
-          return <div key={entry.point.id} className={muted ? "opacity-20 grayscale-[.32] transition-opacity duration-300" : "transition-opacity duration-300"} style={{ position: "absolute", left: node.x, top: node.y }}><CatGlyph {...entry} focused={viewMode === "transactions" ? focusedCompany === entry.point.company || Boolean(searchTerm && searchMatch) : selectedId === entry.point.id} frozen={frozen} showAgeBadge={viewMode === "transactions" && showAgeBadges} onHover={() => setHoveredId(entry.point.id)} onLeave={() => setHoveredId((current) => current === entry.point.id ? null : current)} onClick={() => { if (viewMode === "transactions") { setFocusedCompany((current) => current === entry.point.company ? null : entry.point.company); setSelectedId(null); setHoveredId(null); } else { setSelectedId(entry.point.id); setHoveredId(null); } }} /></div>;
+          return <div key={entry.point.id} className={muted ? "opacity-20 grayscale-[.32] transition-opacity duration-300" : "transition-opacity duration-300"} style={{ position: "absolute", left: node.x, top: node.y }}><CatGlyph {...entry} focused={viewMode === "transactions" ? focusedCompany === entry.point.company || Boolean(searchTerm && searchMatch) : selectedId === entry.point.id} frozen={frozen} onHover={() => setHoveredId(entry.point.id)} onLeave={() => setHoveredId((current) => current === entry.point.id ? null : current)} onClick={() => { if (viewMode === "transactions") { setFocusedCompany((current) => current === entry.point.company ? null : entry.point.company); setSelectedId(null); setHoveredId(null); } else { setSelectedId(entry.point.id); setHoveredId(null); } }} /></div>;
         })}
       </section>
 
@@ -370,7 +384,7 @@ export default function Home() {
 
       <AnimatePresence>{viewMode === "holdings" && selected && focusNode && <motion.aside initial={{ opacity: 0, y: 12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.98 }} transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }} className="fixed z-40 w-[min(336px,calc(100vw-28px))] overflow-hidden rounded-2xl border border-stone-200 bg-white/98 shadow-[0_22px_62px_-24px_rgba(41,37,36,.5)] backdrop-blur" style={{ left: clamp(focusOnRight ? focusNode.x + 76 : focusNode.x - 412, 14, sceneSize.width - 350), top: clamp(focusNode.y - 132, 14, sceneSize.height - 494) }}><div className="flex items-start justify-between border-b border-stone-100 px-5 py-4"><div><p className="font-serif text-[19px] leading-5 text-stone-900">{selected.company}</p><p className="mt-1 font-mono text-[9px] uppercase tracking-[.17em] text-stone-400">{selected.lots.length === 1 ? "Transaction lot" : `${selected.lots.length} transaction lots`}</p></div><button type="button" onClick={() => setSelectedId(null)} aria-label="Close details" className="rounded-full p-1 text-stone-500 transition hover:bg-stone-100 hover:text-stone-900"><X size={16} /></button></div><div className="grid grid-cols-2 gap-x-5 border-b border-stone-100 px-5 py-3"><MetricRow label="Quantity" value={selected.qty.toLocaleString("en-IN")} /><MetricRow label="Avg. buy" value={formatPrice(selected.avgPrice)} /><MetricRow label="Current" value={formatPrice(selected.currentPrice)} /><MetricRow label="Unrealized P&L" value={`${selected.pnl >= 0 ? "+" : ""}${formatCurrency(selected.pnl)}`} /></div><div className="max-h-48 overflow-y-auto px-5 py-3"><p className="mb-2 font-mono text-[9px] uppercase tracking-[.18em] text-stone-400">Lot breakdown</p>{selected.lots.map((lot) => { const lotPnl = lot.buy_qty * (lot.current_price - lot.avg_price); const days = ageInDays(lot.buy_date); const completedYears = Math.floor((days ?? 0) / 365); return <div key={lot.id} className="grid grid-cols-[1fr_auto] gap-2 border-t border-stone-100 py-2 first:border-t-0"><div><p className="font-mono text-[10px] text-stone-700">{lot.buy_qty} × {formatPrice(lot.avg_price)}</p><p className="font-mono text-[9px] text-stone-400">{formatTransactionDate(lot.buy_date)}{days ? ` · ${days}d` : ""}{completedYears ? ` · ${completedYears}y complete` : ""}</p></div><span className={lotPnl >= 0 ? "self-center font-mono text-[10px] text-emerald-700" : "self-center font-mono text-[10px] text-[#ff3b3b]"}>{lotPnl >= 0 ? "+" : ""}{formatCurrency(lotPnl)}</span></div>; })}</div>{selected.taxSensitive && <div className="flex items-center gap-2 border-t border-amber-100 bg-amber-50 px-5 py-3 font-mono text-[10px] text-amber-800"><Sparkles size={13} /> Loss lot near/over the 365-day threshold.</div>}</motion.aside>}</AnimatePresence>
 
-      <PortfolioDrawer open={drawerOpen} onOpenChange={setDrawerOpen} viewMode={viewMode} setViewMode={(mode) => { setViewMode(mode); setSelectedId(null); }} colorMetric={colorMetric} setColorMetric={setColorMetric} taxFilter={taxFilter} setTaxFilter={(filter) => { setTaxFilter(filter); setSelectedId(null); }} showEtfs={showEtfs} setShowEtfs={setShowEtfs} showAgeBadges={showAgeBadges} setShowAgeBadges={setShowAgeBadges} darkMode={darkMode} setDarkMode={setDarkMode} etfLotCount={etfLotCount} frozen={frozen} setFrozen={setFrozen} repulsion={repulsion} setRepulsion={setRepulsion} onImportFile={importFile} uploadNotice={uploadNotice} hasDates={timeline.hasDates} onRestore={() => { setRecords(defaultPortfolio); setUploadNotice(null); setSelectedId(null); setHoveredId(null); }} kittyCount={visiblePoints.length} lotCount={eligibleRecords.length} />
+      <PortfolioDrawer open={drawerOpen} onOpenChange={setDrawerOpen} viewMode={viewMode} setViewMode={(mode) => { setViewMode(mode); setSelectedId(null); }} colorMetric={colorMetric} setColorMetric={setColorMetric} taxFilter={taxFilter} setTaxFilter={(filter) => { setTaxFilter(filter); setSelectedId(null); }} showEtfs={showEtfs} setShowEtfs={setShowEtfs} darkMode={darkMode} setDarkMode={setDarkMode} etfLotCount={etfLotCount} frozen={frozen} setFrozen={setFrozen} repulsion={repulsion} setRepulsion={setRepulsion} onImportFile={importFile} uploadNotice={uploadNotice} hasDates={timeline.hasDates} onRestore={() => { setRecords(defaultPortfolio); setUploadNotice(null); setSelectedId(null); setHoveredId(null); resetViewport(); }} kittyCount={visiblePoints.length} lotCount={eligibleRecords.length} />
       <div className={darkMode ? "fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap font-mono text-[9px] tracking-[.08em] text-stone-500" : "fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap font-mono text-[9px] tracking-[.08em] text-stone-400"}><span>Data updated {dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</span><span aria-hidden="true">·</span><a href="https://thecontrarian.in" target="_blank" rel="noreferrer" className={darkMode ? "transition hover:text-stone-200" : "transition hover:text-stone-800"}>© 2026 Mahesh Shantaram / thecontrarian.in</a></div>
     </main>
   );

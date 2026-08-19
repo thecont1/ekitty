@@ -32,3 +32,8 @@
 - [x] Calculate transaction P&L scale bounds for the visible month window.
 - [x] Position transaction kitties vertically by P&L and reduce overlap.
 - [x] Add and validate the left-side rupee P&L scale.
+- [x] Replace age badges with 3px elapsed-year guide lines.
+- [x] Use round ₹5,000 P&L ticks and horizontal gridlines.
+- [x] Correct profit/loss pigment direction and expand the largest investment cat size.
+- [x] Add viewport reset and reposition the compact bottom-centre search control.
+- [x] Validate the refined transaction field.
