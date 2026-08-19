@@ -10,3 +10,7 @@
 - [x] Diagnose and fix the ETF filter so hidden ETFs visibly leave the field.
 - [x] Add a default-on switch for transaction age badges below the ETF control.
 - [x] Make Transactions the default field view and verify both controls.
+- [x] Inspect the refreshed CSV and verify Vikram Solar and Bikaji Foods August 2026 dates.
+- [x] Refresh the live data source and correct the transaction time-axis range.
+- [x] Add a light/dark mode switch and lower the hamburger below the month labels.
+- [x] Validate the corrected transaction placement and appearance controls.
