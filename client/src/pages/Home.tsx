@@ -29,7 +29,7 @@ type SimNode = { x: number; y: number; vx: number; vy: number };
 type FillTreatment = { fill: string; ink: string; fillOpacity: number; segment: string; neutral: boolean };
 type VisiblePoint = { point: PortfolioPoint; size: number; stroke: number; treatment: FillTreatment; bobDuration: number };
 type Timeline = { months: number[]; indexFor: Record<string, number>; hasDates: boolean };
-type HorizontalDrag = { startX: number; startMonths: number; pointerId: number };
+type TimelineDrag = { startX: number; startY: number; startMonths: number; startWindowStart: number; pointerId: number };
 
 const PORTFOLIO_CSV_URL = "/manus-storage/PortfolioHoldingsTransactions_a72d31dd.csv";
 const LOSS_RED = "#ff3b3b";
@@ -103,8 +103,8 @@ function createTimeline(points: PortfolioPoint[]): Timeline {
   const dated = points.map((point) => serialFromDate(point.oldestDate)).filter((value): value is number => value !== undefined);
   const now = new Date();
   const fallbackEnd = now.getFullYear() * 12 + now.getMonth();
-  const start = dated.length ? Math.min(...dated) : fallbackEnd - 11;
-  const end = dated.length ? Math.max(...dated, fallbackEnd) : fallbackEnd;
+  const start = dated.length ? Math.min(...dated) - 1 : fallbackEnd - 11;
+  const end = dated.length ? Math.max(...dated, fallbackEnd) + 1 : fallbackEnd;
   const span = clamp(end - start + 1, 6, 48);
   const months = Array.from({ length: span }, (_, index) => start + index);
   const indexFor: Record<string, number> = {};
@@ -160,12 +160,13 @@ export default function Home() {
   const [uploadNotice, setUploadNotice] = useState<{ kind: "error" | "success"; message: string } | null>(null);
   const [sceneSize, setSceneSize] = useState({ width: 1200, height: 800 });
   const [visibleMonthCount, setVisibleMonthCount] = useState(24);
+  const [requestedMonthWindowStart, setRequestedMonthWindowStart] = useState(0);
   const [dataUpdatedAt, setDataUpdatedAt] = useState<string | null>(null);
   const [, repaint] = useState(0);
   const nodes = useRef<Record<string, SimNode>>({});
   const frame = useRef<number | null>(null);
   const timelineScroller = useRef<HTMLDivElement | null>(null);
-  const horizontalDrag = useRef<HorizontalDrag | null>(null);
+  const horizontalDrag = useRef<TimelineDrag | null>(null);
   const hasPositionedLatestWindow = useRef(false);
 
   const eligibleRecords = useMemo(() => showEtfs ? records : records.filter((record) => !record.isETF), [records, showEtfs]);
@@ -177,7 +178,8 @@ export default function Home() {
   const monthMinimum = Math.min(6, timeline.months.length);
   const monthMaximum = Math.min(24, timeline.months.length);
   const effectiveMonthCount = clamp(visibleMonthCount, monthMinimum, monthMaximum);
-  const monthWindowStart = Math.max(0, timeline.months.length - effectiveMonthCount);
+  const maxMonthWindowStart = Math.max(0, timeline.months.length - effectiveMonthCount);
+  const monthWindowStart = clamp(requestedMonthWindowStart, 0, maxMonthWindowStart);
   const filteredTransactionPoints = useMemo(() => taxFilter === "isolate" ? transactionPoints.filter((point) => point.taxSensitive) : transactionPoints, [taxFilter, transactionPoints]);
   const transactionWindowPoints = useMemo(() => filteredTransactionPoints.filter((point) => (timeline.indexFor[point.id] ?? 0) >= monthWindowStart), [filteredTransactionPoints, monthWindowStart, timeline]);
   const fieldPoints = useMemo(() => viewMode === "transactions" ? transactionWindowPoints : filteredPoints, [filteredPoints, transactionWindowPoints, viewMode]);
@@ -213,6 +215,7 @@ export default function Home() {
 
   const resetViewport = useCallback(() => {
     setVisibleMonthCount(monthMaximum);
+    setRequestedMonthWindowStart(Math.max(0, timeline.months.length - monthMaximum));
     setFocusedCompany(null);
     setCompanyQuery("");
     setTaxFilter("all");
@@ -221,20 +224,29 @@ export default function Home() {
     setFrozen(false);
     Object.values(nodes.current).forEach((node) => { node.vx = 0; node.vy = 0; });
     repaint((value) => (value + 1) % 10_000);
-  }, [monthMaximum]);
+  }, [monthMaximum, timeline.months.length]);
 
   const beginTimelineDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
     if (viewMode !== "transactions") return;
-    horizontalDrag.current = { startX: event.clientX, startMonths: effectiveMonthCount, pointerId: event.pointerId };
+    horizontalDrag.current = { startX: event.clientX, startY: event.clientY, startMonths: effectiveMonthCount, startWindowStart: monthWindowStart, pointerId: event.pointerId };
     event.currentTarget.setPointerCapture(event.pointerId);
-  }, [effectiveMonthCount, viewMode]);
+  }, [effectiveMonthCount, monthWindowStart, viewMode]);
 
   const moveTimelineDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
     const drag = horizontalDrag.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    const change = Math.round(((event.clientX - drag.startX) / Math.max(sceneSize.width, 320)) * 18);
-    setVisibleMonthCount(clamp(drag.startMonths + change, monthMinimum, monthMaximum));
-  }, [monthMaximum, monthMinimum, sceneSize.width]);
+    const deltaX = event.clientX - drag.startX;
+    const deltaY = event.clientY - drag.startY;
+    if (Math.abs(deltaX) >= Math.abs(deltaY)) {
+      const monthShift = Math.round((-deltaX / Math.max(sceneSize.width, 320)) * 18);
+      setRequestedMonthWindowStart(clamp(drag.startWindowStart + monthShift, 0, maxMonthWindowStart));
+    } else {
+      const monthChange = Math.round((-deltaY / Math.max(sceneSize.height, 320)) * 18);
+      const nextMonthCount = clamp(drag.startMonths + monthChange, monthMinimum, monthMaximum);
+      setVisibleMonthCount(nextMonthCount);
+      if (drag.startWindowStart === maxMonthWindowStart) setRequestedMonthWindowStart(Math.max(0, timeline.months.length - nextMonthCount));
+    }
+  }, [maxMonthWindowStart, monthMaximum, monthMinimum, sceneSize.height, sceneSize.width, timeline.months.length]);
 
   const endTimelineDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
     if (horizontalDrag.current?.pointerId === event.pointerId) horizontalDrag.current = null;
@@ -245,8 +257,13 @@ export default function Home() {
     const delta = event.deltaX || event.deltaY;
     if (!delta) return;
     event.preventDefault();
-    setVisibleMonthCount((current) => clamp(current + Math.sign(delta), monthMinimum, monthMaximum));
-  }, [monthMaximum, monthMinimum, viewMode]);
+    if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) setRequestedMonthWindowStart((current) => clamp(current + Math.sign(event.deltaX), 0, maxMonthWindowStart));
+    else setVisibleMonthCount((current) => {
+      const nextMonthCount = clamp(current + Math.sign(delta), monthMinimum, monthMaximum);
+      if (requestedMonthWindowStart === maxMonthWindowStart) setRequestedMonthWindowStart(Math.max(0, timeline.months.length - nextMonthCount));
+      return nextMonthCount;
+    });
+  }, [maxMonthWindowStart, monthMaximum, monthMinimum, requestedMonthWindowStart, timeline.months.length, viewMode]);
 
   useEffect(() => {
     const updateSize = () => setSceneSize({ width: window.innerWidth, height: window.innerHeight });
@@ -260,12 +277,23 @@ export default function Home() {
   }, [monthMaximum, monthMinimum, records]);
 
   useEffect(() => {
+    if (!timeline.hasDates || hasPositionedLatestWindow.current) return;
+    setRequestedMonthWindowStart(maxMonthWindowStart);
+    hasPositionedLatestWindow.current = true;
+  }, [maxMonthWindowStart, timeline.hasDates]);
+
+  useEffect(() => {
+    setRequestedMonthWindowStart((current) => clamp(current, 0, maxMonthWindowStart));
+  }, [maxMonthWindowStart]);
+
+  useEffect(() => {
     if (viewMode !== "transactions" || !focusedCompany || !timeline.months.length) return;
     const companyIndices = transactionPoints.filter((point) => point.company === focusedCompany).map((point) => timeline.indexFor[point.id]).filter((index): index is number => index !== undefined);
     if (!companyIndices.length) return;
-    const requiredMonths = timeline.months.length - Math.min(...companyIndices);
-    setVisibleMonthCount((current) => clamp(Math.max(current, requiredMonths), monthMinimum, monthMaximum));
-  }, [focusedCompany, monthMaximum, monthMinimum, timeline, transactionPoints, viewMode]);
+    const earliest = Math.min(...companyIndices);
+    const latest = Math.max(...companyIndices);
+    setRequestedMonthWindowStart(clamp(Math.min(earliest, Math.max(0, latest - effectiveMonthCount + 1)), 0, maxMonthWindowStart));
+  }, [effectiveMonthCount, focusedCompany, maxMonthWindowStart, timeline, transactionPoints, viewMode]);
 
   useEffect(() => {
     nodes.current = {};
@@ -374,7 +402,7 @@ export default function Home() {
 
   return (
     <main className={darkMode ? "dark relative h-[100dvh] w-screen overflow-hidden bg-[#101617] text-stone-100" : "relative h-[100dvh] w-screen overflow-hidden bg-white text-stone-900"}>
-      {viewMode === "transactions" && <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">{pnlTicks.map((tick) => { const ratio = (tick + pnlBound) / (pnlBound * 2); return <div key={`grid-${tick}`} className={darkMode ? "absolute left-0 right-0 border-t border-[#20353b]/28" : "absolute left-0 right-0 border-t border-[#dbeef8]/34"} style={{ top: pnlScaleMargin + (1 - ratio) * (sceneSize.height - pnlScaleMargin * 2) }} />; })}{timeline.months.slice(monthWindowStart).map((month, index) => <div key={month} className={darkMode ? "absolute bottom-0 top-0 border-l border-[#284149]/42" : "absolute bottom-0 top-0 border-l border-[#edf7ff]/46"} style={{ left: index * (sceneSize.width / effectiveMonthCount) }}>{index % 3 === 0 && <span className={darkMode ? "absolute left-1 top-3 hidden font-mono text-[8px] tracking-[.12em] text-[#77949e] md:block" : "absolute left-1 top-3 hidden font-mono text-[8px] tracking-[.12em] text-[#c3dff5] md:block"}>{labelMonth(month)}</span>}</div>)}{elapsedYearGuides.map((guide) => { const index = timeline.months.indexOf(guide.serial) - monthWindowStart; return <div key={`year-${guide.years}`} className="absolute bottom-0 top-0 w-[3px] bg-[#70b9e8] shadow-[0_0_0_1px_rgba(112,185,232,.14)]" style={{ left: index * (sceneSize.width / effectiveMonthCount) }}><span className="absolute left-1 top-8 whitespace-nowrap font-mono text-[8px] tracking-[.12em] text-[#4096cf]">{guide.years}y</span></div>; })}</div>}
+      {viewMode === "transactions" && <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">{pnlTicks.map((tick) => { const ratio = (tick + pnlBound) / (pnlBound * 2); return <div key={`grid-${tick}`} className={darkMode ? "absolute left-0 right-0 border-t border-[#20353b]/28" : "absolute left-0 right-0 border-t border-[#dbeef8]/34"} style={{ top: pnlScaleMargin + (1 - ratio) * (sceneSize.height - pnlScaleMargin * 2) }} />; })}{timeline.months.slice(monthWindowStart).map((month, index) => <div key={month} className={darkMode ? "absolute bottom-0 top-0 border-l border-[#284149]/42" : "absolute bottom-0 top-0 border-l border-[#edf7ff]/46"} style={{ left: index * (sceneSize.width / effectiveMonthCount) }}>{index % 3 === 0 && <span className={darkMode ? "absolute left-1 top-3 hidden font-mono text-[9px] font-medium tracking-[.12em] text-[#a6c2cc] md:block" : "absolute left-1 top-3 hidden font-mono text-[9px] font-medium tracking-[.12em] text-[#61869d] md:block"}>{labelMonth(month)}</span>}</div>)}{elapsedYearGuides.map((guide) => { const index = timeline.months.indexOf(guide.serial) - monthWindowStart; return <div key={`year-${guide.years}`} className="absolute bottom-0 top-0 w-[3px] bg-[#70b9e8] shadow-[0_0_0_1px_rgba(112,185,232,.14)]" style={{ left: index * (sceneSize.width / effectiveMonthCount) }}><span className="absolute left-1 top-8 whitespace-nowrap font-mono text-[8px] tracking-[.12em] text-[#4096cf]">{guide.years}y</span></div>; })}</div>}
       <button type="button" aria-label="Reset portfolio field" onPointerDown={(event) => event.stopPropagation()} onClick={resetViewport} className={darkMode ? "fixed right-5 top-[8.5rem] z-40 grid h-12 w-12 place-items-center rounded-full border border-[#49636a] bg-[#142022] text-stone-300 shadow-[0_10px_30px_-16px_rgba(0,0,0,.72)] transition hover:-translate-y-0.5 hover:border-[#D8AE37] hover:text-[#D8AE37] active:scale-95" : "fixed right-5 top-[8.5rem] z-40 grid h-12 w-12 place-items-center rounded-full border border-stone-200 bg-white text-stone-500 shadow-[0_10px_30px_-16px_rgba(41,37,36,.45)] transition hover:-translate-y-0.5 hover:border-[#D8AE37] hover:text-[#a87c12] active:scale-95"}><RotateCcw size={17} /></button>
       <div className="fixed bottom-11 left-1/2 z-40 -translate-x-1/2"><input aria-label="Find a company" value={companyQuery} onChange={(event) => setCompanyQuery(event.target.value)} onPointerDown={(event) => event.stopPropagation()} className={darkMode ? "w-[min(348px,calc(100vw-32px))] rounded-full border border-[#49636a] bg-[#142022] px-4 py-1.5 font-mono text-[9px] text-stone-100 shadow-[0_6px_18px_-12px_rgba(0,0,0,.8)] outline-none placeholder:text-stone-400 focus:border-[#D8AE37]" : "w-[min(348px,calc(100vw-32px))] rounded-full border border-stone-300 bg-white px-4 py-1.5 font-mono text-[9px] text-stone-700 shadow-[0_6px_18px_-12px_rgba(41,37,36,.28)] outline-none placeholder:text-stone-500 focus:border-[#D8AE37]"} placeholder="look what the cat brought in" /></div>
       <section aria-label="Portfolio kitty field" className="absolute inset-0 z-10 touch-pan-y" onWheel={scrollTimeline} onPointerDown={beginTimelineDrag} onPointerMove={moveTimelineDrag} onPointerUp={endTimelineDrag} onPointerCancel={endTimelineDrag}>

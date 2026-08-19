@@ -46,3 +46,9 @@
 - [x] Substantially widen vertical lane freedom and separation within every month strip.
 - [x] Restore conventional profit-green and loss-red kitty pigments.
 - [x] Validate the restored palette in the transaction field.
+- [x] Audit the source CSV for May 2024 transaction dates.
+- [x] Ensure the timeline and reset state include the earliest available month.
+- [x] Strengthen transaction month-label readability and validate historical coverage.
+- [x] Add April 2024 and September 2026 padded transaction months.
+- [x] Keep the default 24-month window latest-right while allowing historical panning to April 2024.
+- [x] Validate May 2024 lots and date-label readability in the historical window.
