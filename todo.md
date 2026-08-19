@@ -65,4 +65,4 @@
 - [x] Stabilize kitty visibility during canvas panning and apply the supplied mouse SVG cursor.
 - [x] Make Reset return the workspace to the top-right world origin.
 - [x] Keep the transaction month dateline fixed at the viewport top while the canvas pans.
-- [ ] Create an isolated branch for a focused GSAP camera migration and verify pan, reset, dateline, and kitty persistence in the Manus Browser.
+- [x] Create an isolated branch for a focused GSAP camera migration and verify pan, reset, dateline, and kitty persistence in the Manus Browser.
