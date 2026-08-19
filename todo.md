@@ -66,4 +66,9 @@
 - [x] Make Reset return the workspace to the top-right world origin.
 - [x] Keep the transaction month dateline fixed at the viewport top while the canvas pans.
 - [x] Create an isolated branch for a focused GSAP camera migration and verify pan, reset, dateline, and kitty persistence in the Manus Browser.
-- [ ] Smoothly reset to the top-right origin, expose the mouse cursor, protect a top margin beneath the frozen dateline, add an all-world fit toggle, and give Grouped Holdings the same panning canvas.
+- [x] Smoothly reset to the top-right origin.
+- [x] Expose a visible mouse cursor overlay.
+- [x] Protect a top margin beneath the frozen dateline.
+- [x] Add an all-world fit toggle below Reset.
+- [x] Give Grouped Holdings the same larger panning canvas.
+- [x] Widen each transaction month strip to three times its current width while preserving camera bounds and fit behavior.

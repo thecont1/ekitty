@@ -9,3 +9,13 @@ The isolated `feature/gsap-camera-migration` branch was tested in the Manus Brow
 | Reset origin | Reset returned all three camera layers to `translate3d(-320px, 0px, 0px)`, the top-right world origin. |
 | Cursor | The supplied mouse SVG was active on the field. |
 | Kitty persistence | DOM kitty count stayed at 185 before and after a completed pan. |
+
+## Latest workspace refinement
+
+The Manus Browser preview shows the **Show all kitties** control directly below Reset, the mouse glyph visibly following the pointer over the canvas, the dateline fixed at the top, and the wider strips presenting fewer month labels within the default viewport. Type checking and the production build passed after the changes.
+
+The browser exposed 185 transaction kitty buttons, including both positive and negative P&L hints, while the fit control was present with the expected accessible label.
+
+
+The Manus Browser fit-toggle round trip also passed: clicking the control changed its accessible label to “Restore normal world view” and displayed the whole world; clicking again returned the label to “Show all kitties” and restored the normal view.
+
