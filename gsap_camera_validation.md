@@ -24,3 +24,8 @@ The Manus Browser fit-toggle round trip also passed: clicking the control change
 
 The Manus Browser preview shows the Mickey cursor rendered in shocking pink (#ff1493). Moving the pointer over the kitty field produced a restrained sequence of smaller, lower-opacity pink dots behind the cursor; the fixed controls and dateline remained unaffected. The normal tooltip interaction continued to work during the movement test.
 
+
+## Cursor and tax-loss badge refinement verification
+
+The Manus Browser preview shows the Mickey cursor with a visibly thinner shocking-pink stroke, and pointer movement continues to render a longer, smoother sequence of pink trail points. The transaction field remains interactive, with the fixed dateline and controls unaffected. Tax-sensitive kitty badges now use a bright yellow circular fill with a solid black outline and are positioned toward the SVG collar medal at approximately 40% left / 51% top.
+

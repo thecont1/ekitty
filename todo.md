@@ -73,3 +73,5 @@
 - [x] Give Grouped Holdings the same larger panning canvas.
 - [x] Widen each transaction month strip to three times its current width while preserving camera bounds and fit behavior.
 - [x] Recolour the mouse cursor shocking pink and add a restrained pointer-motion trail.
+- [x] Thin the pink cursor stroke and make its trail smoother and longer.
+- [x] Restyle the tax-loss badge as a bright-yellow circle with a solid black border, aligned over the collar medal.
