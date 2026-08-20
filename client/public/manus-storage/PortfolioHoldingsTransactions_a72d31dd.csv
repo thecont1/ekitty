@@ -1,0 +1,186 @@
+company,buy_qty,avg_price,current_price,txn_date
+Zen Technologies,7,1482.1,1932.6,2025-09-10
+Yes Bank,150,24.03,22.74,2026-06-16
+Yes Bank,200,23.07,22.74,2026-01-12
+Yes Bank,250,21.15,22.74,2025-09-15
+Whirlpool,2,1356.85,753.45,2025-09-16
+Whirlpool,2,1338.98,753.45,2025-06-17
+Whirlpool,4,1816.55,753.45,2024-12-30
+Walchandnagar Industries,24,233.68,221.86,2026-07-27
+Walchandnagar Industries,23,201.12,221.86,2025-12-19
+Walchandnagar Industries,3,212.9,221.86,2025-09-15
+Vodafone Idea,240,6.68,14.07,2025-06-17
+Vodafone Idea,87,8.15,14.07,2025-01-08
+Vodafone Idea,153,8.1,14.07,2025-01-02
+Vikram Solar,18,164.52,170.84,2026-08-13
+Vikram Solar,20,184.65,170.84,2026-07-07
+Vikram Solar,19,211.09,170.84,2026-06-16
+Vikram Solar,11,199.74,170.84,2026-01-21
+Varun Beverages,15,476.75,431.85,2025-09-08
+Varun Beverages,12,462.68,431.85,2025-06-20
+Ultratech Cement,1,11510.71,11450,2026-06-16
+Ultratech Cement,1,12724.96,11450,2025-09-08
+Tube Invest Of India,2,2628.64,2961,2025-12-19
+Tube Invest Of India,3,2919.88,2961,2025-06-17
+Tube Invest Of India,1,3601.26,2961,2024-12-31
+Tube Invest Of India,2,3659.83,2961,2024-12-20
+Titagarh Wagons,13,779.91,831.75,2026-02-02
+Titagarh Wagons,11,795.79,831.75,2025-08-12
+Titagarh Wagons,6,888.9,831.75,2025-06-17
+Titagarh Wagons,9,1083.2,831.75,2024-10-10
+Texmaco Rail & Engineering,25,107.37,102.65,2026-06-16
+Texmaco Rail & Engineering,40,140.37,102.65,2025-09-08
+Teamlease Services,5,1382.71,1235.2,2026-07-10
+Tata Motors Commercial Vehicles,25,406.73,478.3,2026-06-17
+Tata Consultancy Services,2,2175.65,2289,2026-06-16
+Tata Consultancy Services,2,3133.04,2289,2025-09-16
+Tata Consultancy Services,1,3406.79,2289,2025-06-24
+Tata Consultancy Services,3,3725.08,2289,2024-06-04
+Swiggy Limited,10,356.15,272.4,2025-06-17
+Swiggy Limited,20,504,272.4,2024-09-19
+Sun Pharmaceutical,5,1617.5,1900,2026-02-02
+Sun Pharmaceutical,3,1753.49,1900,2025-12-19
+Sun Pharmaceutical,4,1594.15,1900,2025-09-10
+Sumitomo Chemical,20,426.33,554.2,2026-02-03
+Saraswati Saree Depot Ltd,50,66.56,59.76,2026-02-03
+Saraswati Saree Depot Ltd,14,100.36,59.76,2025-06-17
+Saraswati Saree Depot Ltd,24,141.25,59.76,2024-12-09
+Saraswati Saree Depot Ltd,12,171.84,59.76,2024-08-26
+Reliance Industries,8,1316.49,1311,2026-06-16
+Reliance Industries,7,1447.27,1311,2026-02-03
+REC,7,372.33,337,2026-07-01
+REC,10,361.31,337,2026-02-02
+REC,15,379.67,337,2025-09-15
+RAYMOND REALTY LIMITED,6,668.32,572.6,2026-07-27
+RAYMOND REALTY LIMITED,4,469.34,572.6,2026-02-02
+RAYMOND REALTY LIMITED,2,747.81,572.6,2024-08-12
+Rail Vikas Nigam,10,327.34,223.5,2025-08-22
+Rail Vikas Nigam,20,482.83,223.5,2024-10-10
+Poonawalla Fincorp,10,406.4,493.3,2026-06-16
+Poonawalla Fincorp,14,378.06,493.3,2026-02-02
+Poonawalla Fincorp,6,448.98,493.3,2026-01-20
+Poonawalla Fincorp,10,376.06,493.3,2024-07-31
+Piramal Pharma Limited,30,158.82,209.64,2026-01-20
+Pine Labs,30,157.43,157.62,2026-08-06
+Pine Labs,20,146.13,157.62,2026-08-03
+Pine Labs,30,153.59,157.62,2026-06-16
+Pine Labs,20,225.53,157.62,2026-02-03
+Persistent Systems,5,4364.38,5510,2026-06-29
+Paras Defence & Space Tech,4,636.81,1496.4,2025-12-19
+Paras Defence & Space Tech,4,725.07,1496.4,2025-09-15
+OLA Electric Mobility,100,44,37.28,2026-06-16
+OLA Electric Mobility,250,34.47,37.28,2025-12-19
+OLA Electric Mobility,225,49.11,37.28,2025-08-22
+OLA Electric Mobility,75,46.9,37.28,2025-06-17
+OLA Electric Mobility,195,76,37.28,2024-08-08
+Oil India,20,445.3,474.85,2025-07-04
+NTPC,13,344.76,336.55,2026-01-23
+Nippon India Nifty Bees ETF,88,273.59,274.62,2026-07-14
+Neogen Chemicals Limited,5,1318.92,2328.8,2026-01-14
+Motilal Oswal Nasdaq ETF,7,193.36,336.38,2025-07-04
+Motilal Oswal Nasdaq ETF,53,182.2,336.38,2025-06-17
+Motilal Oswal Nasdaq ETF,6,206.64,336.38,2025-01-08
+Motilal Oswal Nasdaq ETF,8,155.86,336.38,2024-09-09
+Motilal Oswal Nasdaq ETF,6,164.39,336.38,2024-08-22
+Motilal Oswal Nasdaq ETF,9,146.97,336.38,2024-08-05
+Motilal Oswal Nasdaq ETF,3,161.33,336.38,2024-07-26
+Motilal Oswal Nasdaq ETF,24,168.71,336.38,2024-07-16
+Motilal Oswal Nasdaq ETF,1,170.08,336.38,2024-07-05
+Motilal Oswal Nasdaq ETF,18,151.1,336.38,2024-06-05
+Motilal Oswal Nasdaq ETF,11,150.05,336.38,2024-05-31
+Motilal Oswal Nasdaq ETF,14,151.82,336.38,2024-05-28
+Motilal Oswal Nasdaq ETF,7,153.64,336.38,2024-05-22
+Mirae Hang Seng Tech ETF,1050,23.15,23.19,2026-07-14
+MERCURY EV-TECH LIMITED,250,35.68,37.63,2026-07-10
+Mazagon Dock Shipbuilders,10,2213.36,2563.8,2024-09-06
+Lupin,2,2131.02,2225,2025-12-19
+Lupin,3,1957.99,2225,2025-09-08
+LT - Larsen & Toubro,3,3626.86,4041.3,2025-09-16
+LT - Larsen & Toubro,1,3614.13,4041.3,2025-09-15
+LT - Larsen & Toubro,2,3582.5,4041.3,2025-08-26
+Lodha Developers,9,917.82,1210,2026-06-17
+Lodha Developers,4,945.54,1210,2026-02-02
+Lodha Developers,8,983.56,1210,2026-01-21
+L&T Technology Services,3,4631.78,3540.9,2024-05-27
+Kotak Bank,10,407.66,390.25,2026-06-16
+Kotak Bank,50,340.95,390.25,2024-05-22
+Kaveri Seed Company,10,885.65,771.35,2026-06-16
+Kalpataru projects international,7,1359.37,1376.6,2026-07-01
+Jyothy Labs,20,322.62,207.88,2025-06-24
+Jyothy Labs,10,338.23,207.88,2025-06-17
+Jyothy Labs,20,433.43,207.88,2024-05-22
+Jupiter Wagons,20,279.03,248.5,2026-06-16
+Jupiter Wagons,20,304.11,248.5,2026-02-02
+Jupiter Wagons,20,258.76,248.5,2025-12-19
+Jupiter Wagons,20,329.88,248.5,2025-09-08
+Jubilant Life Science,5,992.64,868,2026-02-03
+Jubilant Life Science,5,957.38,868,2026-01-20
+JSW Steel,4,1058.09,1285.8,2025-08-26
+JSW Infrastructure,20,264.88,329.9,2026-02-03
+JSW Infrastructure,20,269.02,329.9,2026-01-21
+JSW Energy,12,479.22,543.95,2026-01-21
+JSW Energy,8,517.78,543.95,2025-08-26
+JSW Cement,26,151.25,123.66,2025-08-26
+Jio Financial Services,12,241.6,243.15,2026-06-16
+Jio Financial Services,12,286.21,243.15,2026-01-13
+Jio Financial Services,12,317.34,243.15,2025-09-16
+JBM Auto,10,556.96,618.65,2026-02-02
+JBM Auto,11,576.52,618.65,2025-12-19
+JBM Auto,6,629.78,618.65,2025-09-08
+JBM Auto,9,646.09,618.65,2025-06-24
+JBM Auto,6,708.67,618.65,2025-06-17
+JBM Auto,8,808.92,618.65,2024-12-09
+JBM Auto,4,1035.6,618.65,2024-07-26
+IZMO,5,978.54,871.55,2026-07-07
+IRFC,24,113.06,85.18,2025-12-19
+IRFC,36,138.62,85.18,2025-06-17
+IRFC,27,159.07,85.18,2024-11-01
+IRFC,32,179.38,85.18,2024-07-05
+IRFC,15,186.54,85.18,2024-05-27
+Intellect Design Arena,5,770.24,678.45,2026-06-16
+Inox India,8,1113.15,1930.3,2026-01-23
+Infosys,7,1437.86,1119.8,2025-08-12
+Infosys,4,1619.87,1119.8,2025-06-26
+Infosys,4,1459.54,1119.8,2024-05-22
+Indus Towers Ltd,15,416.33,372.4,2026-06-16
+Indian Renewable Energy,50,122.19,113.92,2026-07-20
+Indian Overseas Bank,148,38.05,33.18,2025-06-17
+Indian Overseas Bank,2,54.96,33.18,2024-11-01
+Indian Overseas Bank,150,54.73,33.18,2024-10-10
+Ideaforge technology,16,462.61,825.2,2025-08-12
+Ideaforge technology,15,591.77,825.2,2025-07-04
+Hindustan Aeronautics,3,4408.66,5017,2026-07-07
+HDFC Life,12,610.54,536.3,2025-01-06
+HDFC Bank,15,783.24,720,2026-06-16
+HDFC Bank,15,0.0,720,2025-08-26
+HDFC Bank,5,1987.55,720,2025-08-11
+HDFC Bank,10,1461.49,720,2024-05-22
+HDB Financial Services,5,772.04,681.1,2026-01-13
+HDB Financial Services,5,795.93,681.1,2025-09-16
+HCL Technologies,12,1355.48,1324.8,2024-05-27
+Gujarat Mineral Dev Corp,16,564.81,557.75,2026-07-27
+Gujarat Mineral Dev Corp,14,327.49,557.75,2024-10-10
+Gravita India,5,1662.02,1793.1,2026-07-28
+GEM AROMATICS LIMITED,20,153.59,175.55,2025-12-19
+GEM AROMATICS LIMITED,10,271.31,175.55,2025-09-15
+GEM AROMATICS LIMITED,10,329.67,175.55,2025-08-26
+Garden Reach Shipbuilders,5,1942.27,2638.3,2024-09-05
+Euro Pratik Sales,60,247,268.15,2025-09-22
+Datamatics Global Services,10,797.03,817.1,2026-06-16
+Coforge Limited,5,1421.73,1813.1,2026-06-16
+Bikaji Foods International,4,620.55,609.15,2026-08-13
+Bikaji Foods International,5,733.17,609.15,2025-06-17
+Bikaji Foods International,5,783.96,609.15,2024-12-31
+Au Small Finance Bank,6,621.27,1075,2024-05-22
+Astral Poly Tech,4,1411.26,1544.9,2025-08-26
+Astral Poly Tech,1,1971.43,1544.9,2024-08-23
+Anant Raj,8,545.63,631.55,2026-06-16
+Anant Raj,10,551.56,631.55,2026-02-02
+Anant Raj,10,548.5,631.55,2025-12-19
+Anant Raj,12,532.62,631.55,2025-09-10
+Amara Raja Energy & Mobility,9,849.3,928.55,2026-06-16
+Amara Raja Energy & Mobility,7,851.17,928.55,2026-02-03
+Amara Raja Energy & Mobility,7,922.73,928.55,2025-12-19
+Amara Raja Energy & Mobility,7,1033.7,928.55,2025-09-08
+Affle 3i,3,1637.02,1693.8,2026-02-03
+Aether Industries,5,1323.93,1640.1,2026-07-07
