@@ -78,4 +78,5 @@
 - [x] Make the tax-loss badge smaller and more golden while preserving its collar alignment.
 - [x] Replace the pink dot trail with a smooth trail of small Mickey silhouettes.
 - [x] Remove the Mickey trail effect and retain only the single shocking-pink cursor.
+- [x] Normalize the cursor to one clean single-stroke shocking-pink Mickey rendering with no trail layer.
 - [x] Make Grouped Holdings the default view and clear stale trail-handler references.
