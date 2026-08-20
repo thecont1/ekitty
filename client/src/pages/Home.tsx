@@ -149,7 +149,7 @@ function MetricRow({ label, value }: { label: string; value: string }) {
 
 export default function Home() {
   const [records, setRecords] = useState<PortfolioLot[]>(defaultPortfolio);
-  const [viewMode, setViewMode] = useState<ViewMode>("transactions");
+  const [viewMode, setViewMode] = useState<ViewMode>("holdings");
   const [colorMetric, setColorMetric] = useState<ColorMetric>("absolute");
   const [taxFilter, setTaxFilter] = useState<TaxFilter>("all");
   const [showEtfs, setShowEtfs] = useState(true);
@@ -170,7 +170,6 @@ export default function Home() {
   const [canvasPanY, setCanvasPanY] = useState(0);
   const [isWorldFit, setIsWorldFit] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0, visible: false });
-  const [mouseTrail, setMouseTrail] = useState<Array<{ x: number; y: number }>>([]);
   const [dataUpdatedAt, setDataUpdatedAt] = useState<string | null>(null);
   const [, repaint] = useState(0);
   const nodes = useRef<Record<string, SimNode>>({});
@@ -480,20 +479,11 @@ export default function Home() {
   const activeCanvasPanX = timelinePanOffset;
   const activeCanvasPanY = canvasPanY;
   const focusOnRight = (focusNode?.x ?? 0) + activeCanvasPanX < sceneSize.width * 0.55;
-  const pushMouseTrail = useCallback((nextPosition: { x: number; y: number }) => {
-    setMouseTrail((current) => {
-      const previous = current[0];
-      const smoothed = previous ? { x: previous.x + (nextPosition.x - previous.x) * 0.56, y: previous.y + (nextPosition.y - previous.y) * 0.56 } : nextPosition;
-      return [nextPosition, smoothed, ...current].slice(0, 12);
-    });
-  }, []);
-
   const handleFieldPointerMove = useCallback((event: React.PointerEvent<HTMLElement>) => {
     const nextPosition = { x: event.clientX, y: event.clientY };
     setMousePosition({ ...nextPosition, visible: true });
-    pushMouseTrail(nextPosition);
     moveTimelineDrag(event);
-  }, [moveTimelineDrag, pushMouseTrail]);
+  }, [moveTimelineDrag]);
 
   return (
     <main className={darkMode ? "dark relative h-[100dvh] w-screen overflow-hidden bg-[#101617] text-stone-100" : "relative h-[100dvh] w-screen overflow-hidden bg-white text-stone-900"}>
@@ -502,7 +492,7 @@ export default function Home() {
       <button type="button" aria-label="Reset portfolio field" onPointerDown={(event) => event.stopPropagation()} onClick={resetViewport} className={darkMode ? "fixed right-5 top-[8.5rem] z-40 grid h-12 w-12 place-items-center rounded-full border border-[#49636a] bg-[#142022] text-stone-300 shadow-[0_10px_30px_-16px_rgba(0,0,0,.72)] transition hover:-translate-y-0.5 hover:border-[#D8AE37] hover:text-[#D8AE37] active:scale-95" : "fixed right-5 top-[8.5rem] z-40 grid h-12 w-12 place-items-center rounded-full border border-stone-200 bg-white text-stone-500 shadow-[0_10px_30px_-16px_rgba(41,37,36,.45)] transition hover:-translate-y-0.5 hover:border-[#D8AE37] hover:text-[#a87c12] active:scale-95"}><RotateCcw size={17} /></button>
       <button type="button" aria-label={isWorldFit ? "Restore normal world view" : "Show all kitties"} onPointerDown={(event) => event.stopPropagation()} onClick={toggleWorldFit} className={darkMode ? "fixed right-5 top-[12.5rem] z-40 grid h-12 w-12 place-items-center rounded-full border border-[#49636a] bg-[#142022] text-stone-300 shadow-[0_10px_30px_-16px_rgba(0,0,0,.72)] transition hover:-translate-y-0.5 hover:border-[#D8AE37] hover:text-[#D8AE37] active:scale-95" : "fixed right-5 top-[12.5rem] z-40 grid h-12 w-12 place-items-center rounded-full border border-stone-200 bg-white text-stone-500 shadow-[0_10px_30px_-16px_rgba(41,37,36,.45)] transition hover:-translate-y-0.5 hover:border-[#D8AE37] hover:text-[#a87c12] active:scale-95"}>{isWorldFit ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
       <div className="fixed bottom-11 left-1/2 z-40 -translate-x-1/2"><input aria-label="Find a company" value={companyQuery} onChange={(event) => setCompanyQuery(event.target.value)} onPointerDown={(event) => event.stopPropagation()} className={darkMode ? "w-[min(348px,calc(100vw-32px))] rounded-full border border-[#49636a] bg-[#142022] px-4 py-1.5 font-mono text-[9px] text-stone-100 shadow-[0_6px_18px_-12px_rgba(0,0,0,.8)] outline-none placeholder:text-stone-400 focus:border-[#D8AE37]" : "w-[min(348px,calc(100vw-32px))] rounded-full border border-stone-300 bg-white px-4 py-1.5 font-mono text-[9px] text-stone-700 shadow-[0_6px_18px_-12px_rgba(41,37,36,.28)] outline-none placeholder:text-stone-500 focus:border-[#D8AE37]"} placeholder="look what the cat brought in" /></div>
-      <section ref={kittyWorld} aria-label="Portfolio kitty field" className="absolute left-0 top-0 z-10 touch-none" style={{ width: virtualCanvasWidth, height: virtualCanvasHeight, cursor: MOUSE_CURSOR }} onWheel={scrollTimeline} onPointerDown={(event) => { const nextPosition = { x: event.clientX, y: event.clientY }; setMousePosition({ ...nextPosition, visible: true }); pushMouseTrail(nextPosition); beginTimelineDrag(event); }} onPointerMove={handleFieldPointerMove} onPointerEnter={(event) => { const nextPosition = { x: event.clientX, y: event.clientY }; setMousePosition({ ...nextPosition, visible: true }); pushMouseTrail(nextPosition); }} onPointerLeave={() => { setMousePosition((current) => ({ ...current, visible: false })); setMouseTrail([]); }} onPointerUp={endTimelineDrag} onPointerCancel={endTimelineDrag}>
+      <section ref={kittyWorld} aria-label="Portfolio kitty field" className="absolute left-0 top-0 z-10 touch-none" style={{ width: virtualCanvasWidth, height: virtualCanvasHeight, cursor: MOUSE_CURSOR }} onWheel={scrollTimeline} onPointerDown={(event) => { const nextPosition = { x: event.clientX, y: event.clientY }; setMousePosition({ ...nextPosition, visible: true }); beginTimelineDrag(event); }} onPointerMove={handleFieldPointerMove} onPointerEnter={(event) => { const nextPosition = { x: event.clientX, y: event.clientY }; setMousePosition({ ...nextPosition, visible: true }); }} onPointerLeave={() => { setMousePosition((current) => ({ ...current, visible: false })); }} onPointerUp={endTimelineDrag} onPointerCancel={endTimelineDrag}>
         {visiblePoints.map((entry) => {
           const node = nodes.current[entry.point.id]; if (!node) return null;
           const searchMatch = !searchTerm || entry.point.company.toLocaleLowerCase().includes(searchTerm);
@@ -512,7 +502,6 @@ export default function Home() {
       </section>
 
       {mousePosition.visible && <>
-        <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-[59] overflow-hidden">{mouseTrail.slice(1).map((point, index) => { const size = Math.max(6, 17 - index * 0.72); const opacity = Math.max(0.08, 0.42 - index * 0.027); return <svg key={`mouse-trail-${index}`} viewBox="0 0 24 24" width={size} height={size} className="absolute" style={{ left: point.x, top: point.y, opacity, transform: `translate(-50%, -50%) rotate(${(index % 2 ? -1 : 1) * (4 + index * 0.7)}deg)`, filter: `drop-shadow(0 0 ${Math.max(2, 5 - index * 0.18)}px ${SHOCKING_PINK})`, transition: "left 360ms cubic-bezier(.23,1,.32,1), top 360ms cubic-bezier(.23,1,.32,1), opacity 420ms ease-out" }}><path d="M5.5 3a3.5 3.5 0 0 1 3.25 4.8a7.017 7.017 0 0 0 -2.424 2.1a3.5 3.5 0 1 1 -.826 -6.9z" fill="none" stroke={SHOCKING_PINK} strokeWidth="1.15" strokeLinecap="round" strokeLinejoin="round" /><path d="M18.5 3a3.5 3.5 0 1 1 -.826 6.902a7.013 7.013 0 0 0 -2.424 -2.103a3.5 3.5 0 0 1 3.25 -4.799z" fill="none" stroke={SHOCKING_PINK} strokeWidth="1.15" strokeLinecap="round" strokeLinejoin="round" /><circle cx="12" cy="14" r="7" fill="none" stroke={SHOCKING_PINK} strokeWidth="1.15" /></svg>; })}</div>
         <div aria-hidden="true" className="pointer-events-none fixed z-[60] -translate-x-1/2 -translate-y-1/2" style={{ left: mousePosition.x, top: mousePosition.y, filter: `drop-shadow(0 0 4px ${SHOCKING_PINK})` }}><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={SHOCKING_PINK} strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round"><path d="M5.5 3a3.5 3.5 0 0 1 3.25 4.8a7.017 7.017 0 0 0 -2.424 2.1a3.5 3.5 0 1 1 -.826 -6.9z" /><path d="M18.5 3a3.5 3.5 0 1 1 -.826 6.902a7.013 7.013 0 0 0 -2.424 -2.103a3.5 3.5 0 0 1 3.25 -4.799z" /><path d="M12 14m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" /></svg></div>
       </>}
       <AnimatePresence>{hovered && tooltipNode && !selected && <motion.aside initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.16 }} className="pointer-events-none fixed z-30 w-64 rounded-xl border border-stone-200/90 bg-white/95 px-4 py-3 shadow-[0_16px_45px_-20px_rgba(41,37,36,.42)] backdrop-blur" style={{ left: clamp(tooltipNode.x + activeCanvasPanX + 34, 12, sceneSize.width - 274), top: clamp(tooltipNode.y + activeCanvasPanY - 28, 12, sceneSize.height - 184) }}><div className="mb-2 flex items-start justify-between gap-2"><p className="font-serif text-[15px] leading-4 text-stone-900">{hovered.company}</p><span className={hovered.pnl >= 0 ? "font-mono text-[10px] text-emerald-700" : "font-mono text-[10px] text-[#ff3b3b]"}>{hovered.pnl >= 0 ? "+" : ""}{hovered.pnlPercent.toFixed(1)}%</span></div><div className="grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-[10px] tabular-nums">{viewMode === "transactions" && <><span className="text-stone-400">Date</span><span className="text-right">{formatTransactionDate(hovered.oldestDate)}</span></>}<span className="text-stone-400">Qty</span><span className="text-right">{hovered.qty}</span><span className="text-stone-400">Buy price</span><span className="text-right">{formatPrice(hovered.avgPrice)}</span><span className="text-stone-400">Current price</span><span className="text-right">{formatPrice(hovered.currentPrice)}</span><span className="text-stone-400">Invested</span><span className="text-right">{formatCurrency(hovered.investedValue)}</span><span className="text-stone-400">Value</span><span className="text-right">{formatCurrency(hovered.currentValue)}</span><span className="text-stone-400">P&amp;L</span><span className={hovered.pnl >= 0 ? "text-right text-emerald-700" : "text-right text-[#ff3b3b]"}>{formatCurrency(hovered.pnl)}</span></div></motion.aside>}</AnimatePresence>
