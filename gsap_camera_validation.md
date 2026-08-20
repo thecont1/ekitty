@@ -29,3 +29,8 @@ The Manus Browser preview shows the Mickey cursor rendered in shocking pink (#ff
 
 The Manus Browser preview shows the Mickey cursor with a visibly thinner shocking-pink stroke, and pointer movement continues to render a longer, smoother sequence of pink trail points. The transaction field remains interactive, with the fixed dateline and controls unaffected. Tax-sensitive kitty badges now use a bright yellow circular fill with a solid black outline and are positioned toward the SVG collar medal at approximately 40% left / 51% top.
 
+
+## Gold medal and Mickey silhouette trail verification
+
+The updated Manus Browser preview shows the cursor trail rendered as repeated pink Mickey silhouettes rather than circular dots. The current pointer remains a larger silhouette, while the trail marks taper in size and opacity and drift with alternating subtle rotation. Tax-sensitive markers use the smaller Catkin Gold circle with a black outline and remain centered over the collar-medal location.
+

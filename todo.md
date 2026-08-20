@@ -75,3 +75,5 @@
 - [x] Recolour the mouse cursor shocking pink and add a restrained pointer-motion trail.
 - [x] Thin the pink cursor stroke and make its trail smoother and longer.
 - [x] Restyle the tax-loss badge as a bright-yellow circle with a solid black border, aligned over the collar medal.
+- [x] Make the tax-loss badge smaller and more golden while preserving its collar alignment.
+- [x] Replace the pink dot trail with a smooth trail of small Mickey silhouettes.
