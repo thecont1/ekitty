@@ -154,9 +154,9 @@ function vitePluginStorageProxy(): Plugin {
   return {
     name: "manus-storage-proxy",
     configureServer(server: ViteDevServer) {
-      server.middlewares.use("/manus-storage", async (req, res) => {
-        const key = req.url?.replace(/^\//, "");
-        if (!key) {
+      server.middlewares.use("/data", async (req, res) => {
+        const filename = req.url?.replace(/^\//, "");
+        if (!filename) {
           res.writeHead(400, { "Content-Type": "text/plain" });
           res.end("Missing storage key");
           return;
@@ -172,8 +172,13 @@ function vitePluginStorageProxy(): Plugin {
         }
 
         try {
+          // Map local data filenames to their forge storage keys
+          const forgeKeyMap: Record<string, string> = {
+            "portfolio.csv": "PortfolioHoldingsTransactions_a72d31dd.csv",
+          };
+          const forgePath = forgeKeyMap[filename] ?? filename;
           const forgeUrl = new URL("v1/storage/presign/get", forgeBaseUrl + "/");
-          forgeUrl.searchParams.set("path", key);
+          forgeUrl.searchParams.set("path", forgePath);
 
           const forgeResp = await fetch(forgeUrl, {
             headers: { Authorization: `Bearer ${forgeKey}` },

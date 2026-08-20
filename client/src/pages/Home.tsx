@@ -33,7 +33,7 @@ type Timeline = { months: number[]; indexFor: Record<string, number>; hasDates: 
 type TimelineGesture = "idle" | "pan";
 type TimelineDrag = { startX: number; startY: number; startPanX: number; startPanY: number; pointerId: number; gesture: TimelineGesture };
 
-const PORTFOLIO_CSV_URL = "/manus-storage/PortfolioHoldingsTransactions_a72d31dd.csv";
+const PORTFOLIO_CSV_URL = "/data/portfolio.csv";
 const LOSS_RED = "#ff3b3b";
 const GAIN_GREEN = "#17885b";
 const SHOCKING_PINK = "#ff1493";
