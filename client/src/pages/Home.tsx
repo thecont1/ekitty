@@ -11,7 +11,6 @@ import {
   ageInDays,
   asHoldingPoints,
   asTransactionPoints,
-  defaultPortfolio,
   formatCurrency,
   formatPrice,
   parsePortfolioCsv,
@@ -20,8 +19,11 @@ import {
 } from "@/lib/portfolio";
 import { AnimatePresence, motion } from "framer-motion";
 import { gsap } from "gsap";
-import { ChevronDown, Eye, FileUp, Maximize2, Menu, Minimize2, Pause, Play, RotateCcw, Sparkles, X } from "lucide-react";
+import { ChevronDown, Eye, FileUp, Menu, Pause, Play, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import flagIcon from "@/assets/checkered-flag.svg";
+import broomIcon from "@/assets/broom.svg";
+import darkModeIcon from "@/assets/dark_and_cool.png";
 
 type ViewMode = "holdings" | "transactions";
 type ColorMetric = "percent" | "absolute";
@@ -34,8 +36,11 @@ type TimelineGesture = "idle" | "pan";
 type TimelineDrag = { startX: number; startY: number; startPanX: number; startPanY: number; pointerId: number; gesture: TimelineGesture };
 
 const PORTFOLIO_CSV_URL = "/data/portfolio.csv";
+const PORTFOLIO_STORAGE_KEY = "ekitty-portfolio-csv";
 const LOSS_RED = "#ff3b3b";
 const GAIN_GREEN = "#17885b";
+const LOSS_RED_DARK = "#ff6b6b";
+const GAIN_GREEN_DARK = "#4ade80";
 const SHOCKING_PINK = "#ff1493";
 const MOUSE_CURSOR = "none";
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
@@ -148,7 +153,7 @@ function MetricRow({ label, value }: { label: string; value: string }) {
 }
 
 export default function Home() {
-  const [records, setRecords] = useState<PortfolioLot[]>(defaultPortfolio);
+  const [records, setRecords] = useState<PortfolioLot[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("holdings");
   const [colorMetric, setColorMetric] = useState<ColorMetric>("absolute");
   const [taxFilter, setTaxFilter] = useState<TaxFilter>("all");
@@ -162,6 +167,7 @@ export default function Home() {
   const [focusedCompany, setFocusedCompany] = useState<string | null>(null);
   const [companyQuery, setCompanyQuery] = useState("");
   const [uploadNotice, setUploadNotice] = useState<{ kind: "error" | "success"; message: string } | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const [sceneSize, setSceneSize] = useState({ width: 1200, height: 800 });
   const [visibleMonthCount, setVisibleMonthCount] = useState(24);
   const [requestedMonthWindowStart, setRequestedMonthWindowStart] = useState(0);
@@ -186,6 +192,13 @@ export default function Home() {
 
   const eligibleRecords = useMemo(() => showEtfs ? records : records.filter((record) => !record.isETF), [records, showEtfs]);
   const etfLotCount = useMemo(() => records.filter((record) => record.isETF).length, [records]);
+  const portfolioTotals = useMemo(() => {
+    let invested = 0, current = 0;
+    for (const lot of eligibleRecords) { invested += lot.buy_qty * lot.avg_price; current += lot.buy_qty * lot.current_price; }
+    const pnl = current - invested;
+    const pnlPercent = invested > 0 ? (pnl / invested) * 100 : 0;
+    return { invested, current, pnl, pnlPercent };
+  }, [eligibleRecords]);
   const transactionPoints = useMemo(() => asTransactionPoints(eligibleRecords), [eligibleRecords]);
   const points = useMemo(() => viewMode === "holdings" ? asHoldingPoints(eligibleRecords) : transactionPoints, [eligibleRecords, transactionPoints, viewMode]);
   const filteredPoints = useMemo(() => taxFilter === "isolate" ? points.filter((point) => point.taxSensitive) : points, [points, taxFilter]);
@@ -383,14 +396,19 @@ export default function Home() {
     setFocusedCompany(null);
   }, [showEtfs, viewMode]);
 
-  useEffect(() => {
-    let mounted = true;
+  const loadPortfolioCsv = useCallback(() => {
+    const stored = localStorage.getItem(PORTFOLIO_STORAGE_KEY);
+    if (stored) {
+      const parsed = parsePortfolioCsv(stored);
+      if (parsed.records.length) { setRecords(parsed.records); setDataUpdatedAt(new Date().toISOString()); return; }
+    }
     fetch(PORTFOLIO_CSV_URL).then(async (response) => ({ text: await response.text(), lastModified: response.headers.get("last-modified") })).then(({ text, lastModified }) => {
       const parsed = parsePortfolioCsv(text);
-      if (mounted && parsed.records.length) { setRecords(parsed.records); setDataUpdatedAt(lastModified ?? new Date().toISOString()); }
+      if (parsed.records.length) { setRecords(parsed.records); setDataUpdatedAt(lastModified ?? new Date().toISOString()); }
     }).catch(() => undefined);
-    return () => { mounted = false; };
   }, []);
+
+  useEffect(() => { loadPortfolioCsv(); }, [loadPortfolioCsv]);
 
   useEffect(() => {
     const nextNodes: Record<string, SimNode> = {};
@@ -470,6 +488,7 @@ export default function Home() {
     file.text().then((text) => {
       const parsed = parsePortfolioCsv(text);
       if (parsed.error) { setUploadNotice({ kind: "error", message: parsed.error }); return; }
+      localStorage.setItem(PORTFOLIO_STORAGE_KEY, text);
       setRecords(parsed.records); setDataUpdatedAt(new Date().toISOString()); setUploadNotice({ kind: "success", message: `${parsed.records.length} lots loaded into the field.` }); setSelectedId(null); setHoveredId(null); setTaxFilter("all");
     });
   }, []);
@@ -487,11 +506,13 @@ export default function Home() {
 
   return (
     <main className={darkMode ? "dark relative h-[100dvh] w-screen overflow-hidden bg-[#101617] text-stone-100" : "relative h-[100dvh] w-screen overflow-hidden bg-white text-stone-900"}>
+      {records.length === 0 && <div className="fixed inset-0 z-[55] flex flex-col items-center justify-center" onDragOver={(event) => { event.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={(event) => { event.preventDefault(); setDragOver(false); importFile(event.dataTransfer.files[0]); }}><label className="flex cursor-pointer flex-col items-center gap-6" onDragOver={(event) => { event.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={(event) => { event.preventDefault(); setDragOver(false); importFile(event.dataTransfer.files[0]); }}><div className="transition-transform duration-200" style={{ transform: dragOver ? "scale(1.08)" : "scale(1)" }}><PortfolioKittySvg stroke={dragOver ? "#D8AE37" : darkMode ? "#a6c2cc" : "#ff3b3b"} fill={dragOver ? "#D8AE37" : "transparent"} fillOpacity={dragOver ? 0.08 : 0} strokeWidth={dragOver ? 3 : 2} className="h-48 w-48" /></div><div className="text-center"><p className={darkMode ? "font-serif text-2xl text-stone-100" : "font-serif text-2xl text-stone-900"}>{dragOver ? "Release to load your portfolio" : "Drop your portfolio.csv here"}</p><p className={darkMode ? "mt-2 font-mono text-[10px] tracking-[.12em] text-stone-400" : "mt-2 font-mono text-[10px] tracking-[.12em] text-stone-400"}>or click to browse · columns: company · buy_qty · avg_price · current_price · txn_date</p></div><input type="file" accept=".csv,text/csv" className="sr-only" onChange={(event) => importFile(event.target.files?.[0])} /></label>{uploadNotice && <p className={uploadNotice.kind === "error" ? darkMode ? "mt-6 font-mono text-[10px] text-[#ff6b6b]" : "mt-6 font-mono text-[10px] text-[#ff3b3b]" : darkMode ? "mt-6 font-mono text-[10px] text-[#4ade80]" : "mt-6 font-mono text-[10px] text-emerald-700"}>{uploadNotice.message}</p>}</div>}
       {viewMode === "transactions" && <div ref={gridWorld} aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-0 overflow-hidden" style={{ width: virtualCanvasWidth, height: virtualCanvasHeight }}>{pnlTicks.map((tick) => { const ratio = (tick + pnlBound) / (pnlBound * 2); return <div key={`grid-${tick}`} className={darkMode ? "absolute left-0 right-0 border-t border-[#20353b]/28" : "absolute left-0 right-0 border-t border-[#dbeef8]/34"} style={{ top: pnlScaleMargin + (1 - ratio) * (transactionLayoutHeight - pnlScaleMargin * 2) }} />; })}{timeline.months.map((month, index) => <div key={month} className={darkMode ? "absolute bottom-0 top-0 border-l border-[#284149]/42" : "absolute bottom-0 top-0 border-l border-[#edf7ff]/46"} style={{ left: index * transactionStripWidth }} />)}{elapsedYearGuides.map((guide) => { const index = timeline.months.indexOf(guide.serial); return <div key={`year-${guide.years}`} className="absolute bottom-0 top-0 w-[3px] bg-[#70b9e8] shadow-[0_0_0_1px_rgba(112,185,232,.14)]" style={{ left: index * transactionStripWidth }} />; })}</div>}
       {viewMode === "transactions" && <div aria-hidden="true" className={darkMode ? "pointer-events-none fixed inset-x-0 top-0 z-20 h-10 overflow-hidden bg-[#101617]/88 backdrop-blur-[2px]" : "pointer-events-none fixed inset-x-0 top-0 z-20 h-10 overflow-hidden bg-white/88 backdrop-blur-[2px]"}><div ref={datelineWorld} className="relative h-full" style={{ width: virtualCanvasWidth }}>{timeline.months.map((month, index) => index % 3 === 0 && <span key={`label-${month}`} className={darkMode ? "absolute top-3 hidden font-mono text-[9px] font-medium tracking-[.12em] text-[#a6c2cc] md:block" : "absolute top-3 hidden font-mono text-[9px] font-medium tracking-[.12em] text-[#61869d] md:block"} style={{ left: index * transactionStripWidth + 4 }}>{labelMonth(month)}</span>)}{elapsedYearGuides.map((guide) => { const index = timeline.months.indexOf(guide.serial); return <span key={`year-label-${guide.years}`} className="absolute top-7 font-mono text-[8px] tracking-[.12em] text-[#4096cf]" style={{ left: index * transactionStripWidth + 5 }}>{guide.years}y</span>; })}</div></div>}
-      <button type="button" aria-label="Reset portfolio field" onPointerDown={(event) => event.stopPropagation()} onClick={resetViewport} className={darkMode ? "fixed right-5 top-[8.5rem] z-40 grid h-12 w-12 place-items-center rounded-full border border-[#49636a] bg-[#142022] text-stone-300 shadow-[0_10px_30px_-16px_rgba(0,0,0,.72)] transition hover:-translate-y-0.5 hover:border-[#D8AE37] hover:text-[#D8AE37] active:scale-95" : "fixed right-5 top-[8.5rem] z-40 grid h-12 w-12 place-items-center rounded-full border border-stone-200 bg-white text-stone-500 shadow-[0_10px_30px_-16px_rgba(41,37,36,.45)] transition hover:-translate-y-0.5 hover:border-[#D8AE37] hover:text-[#a87c12] active:scale-95"}><RotateCcw size={17} /></button>
-      <button type="button" aria-label={isWorldFit ? "Restore normal world view" : "Show all kitties"} onPointerDown={(event) => event.stopPropagation()} onClick={toggleWorldFit} className={darkMode ? "fixed right-5 top-[12.5rem] z-40 grid h-12 w-12 place-items-center rounded-full border border-[#49636a] bg-[#142022] text-stone-300 shadow-[0_10px_30px_-16px_rgba(0,0,0,.72)] transition hover:-translate-y-0.5 hover:border-[#D8AE37] hover:text-[#D8AE37] active:scale-95" : "fixed right-5 top-[12.5rem] z-40 grid h-12 w-12 place-items-center rounded-full border border-stone-200 bg-white text-stone-500 shadow-[0_10px_30px_-16px_rgba(41,37,36,.45)] transition hover:-translate-y-0.5 hover:border-[#D8AE37] hover:text-[#a87c12] active:scale-95"}>{isWorldFit ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
-      <div className="fixed bottom-11 left-1/2 z-40 -translate-x-1/2"><input aria-label="Find a company" value={companyQuery} onChange={(event) => setCompanyQuery(event.target.value)} onPointerDown={(event) => event.stopPropagation()} className={darkMode ? "w-[min(348px,calc(100vw-32px))] rounded-full border border-[#49636a] bg-[#142022] px-4 py-1.5 font-mono text-[9px] text-stone-100 shadow-[0_6px_18px_-12px_rgba(0,0,0,.8)] outline-none placeholder:text-stone-400 focus:border-[#D8AE37]" : "w-[min(348px,calc(100vw-32px))] rounded-full border border-stone-300 bg-white px-4 py-1.5 font-mono text-[9px] text-stone-700 shadow-[0_6px_18px_-12px_rgba(41,37,36,.28)] outline-none placeholder:text-stone-500 focus:border-[#D8AE37]"} placeholder="look what the cat brought in" /></div>
+      <button type="button" aria-label="Reset portfolio field" onPointerDown={(event) => event.stopPropagation()} onClick={resetViewport} className="fixed right-8 top-[7rem] z-40 transition hover:-translate-y-0.5 active:scale-95"><img src={flagIcon} alt="" className={darkMode ? "h-8 w-8 opacity-80 transition hover:opacity-100 invert" : "h-8 w-8 opacity-80 transition hover:opacity-100"} /></button>
+      <button type="button" aria-label={isWorldFit ? "Restore normal world view" : "Show all kitties"} onPointerDown={(event) => event.stopPropagation()} onClick={toggleWorldFit} className="fixed right-9 top-[11rem] z-40 transition hover:-translate-y-0.5 active:scale-95"><img src={broomIcon} alt="" className={darkMode ? "h-8 w-8 opacity-80 transition hover:opacity-100 invert" : "h-8 w-8 opacity-80 transition hover:opacity-100"} /></button>
+      <button type="button" aria-label="Toggle dark mode" onPointerDown={(event) => event.stopPropagation()} onClick={() => setDarkMode((current) => !current)} className="fixed right-7.5 top-[15.25rem] z-40 transition hover:-translate-y-0.5 active:scale-95"><img src={darkModeIcon} alt="" className={darkMode ? "h-10 w-10 opacity-100 transition hover:opacity-100 invert" : "h-10 w-10 opacity-100 transition hover:opacity-100"} /></button>
+      {records.length > 0 && <div className="fixed bottom-11 left-1/2 z-40 -translate-x-1/2"><input aria-label="Find a company" value={companyQuery} onChange={(event) => setCompanyQuery(event.target.value)} onPointerDown={(event) => event.stopPropagation()} className={darkMode ? "w-[min(348px,calc(100vw-32px))] rounded-full border border-[#49636a] bg-[#142022] px-4 py-1.5 font-mono text-[9px] text-stone-100 shadow-[0_6px_18px_-12px_rgba(0,0,0,.8)] outline-none placeholder:text-stone-400 focus:border-[#D8AE37]" : "w-[min(348px,calc(100vw-32px))] rounded-full border border-stone-300 bg-white px-4 py-1.5 font-mono text-[9px] text-stone-700 shadow-[0_6px_18px_-12px_rgba(41,37,36,.28)] outline-none placeholder:text-stone-500 focus:border-[#D8AE37]"} placeholder="look what the cat brought in" /></div>}
       <section ref={kittyWorld} aria-label="Portfolio kitty field" className="absolute left-0 top-0 z-10 touch-none" style={{ width: virtualCanvasWidth, height: virtualCanvasHeight, cursor: MOUSE_CURSOR }} onWheel={scrollTimeline} onPointerDown={(event) => { const nextPosition = { x: event.clientX, y: event.clientY }; setMousePosition({ ...nextPosition, visible: true }); beginTimelineDrag(event); }} onPointerMove={handleFieldPointerMove} onPointerEnter={(event) => { const nextPosition = { x: event.clientX, y: event.clientY }; setMousePosition({ ...nextPosition, visible: true }); }} onPointerLeave={() => { setMousePosition((current) => ({ ...current, visible: false })); }} onPointerUp={endTimelineDrag} onPointerCancel={endTimelineDrag}>
         {visiblePoints.map((entry) => {
           const node = nodes.current[entry.point.id]; if (!node) return null;
@@ -504,11 +525,11 @@ export default function Home() {
       {mousePosition.visible && <>
         <div aria-hidden="true" className="pointer-events-none fixed z-[60] -translate-x-1/2 -translate-y-1/2" style={{ left: mousePosition.x, top: mousePosition.y, filter: `drop-shadow(0 0 4px ${SHOCKING_PINK})` }}><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={SHOCKING_PINK} strokeWidth="1.15" strokeLinecap="round" strokeLinejoin="round"><path d="M5.5 3a3.5 3.5 0 0 1 3.25 4.8a7.017 7.017 0 0 0 -2.424 2.1a3.5 3.5 0 1 1 -.826 -6.9z" /><path d="M18.5 3a3.5 3.5 0 1 1 -.826 6.902a7.013 7.013 0 0 0 -2.424 -2.103a3.5 3.5 0 0 1 3.25 -4.799z" /><path d="M12 14m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" /></svg></div>
       </>}
-      <AnimatePresence>{hovered && tooltipNode && !selected && <motion.aside initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.16 }} className="pointer-events-none fixed z-30 w-64 rounded-xl border border-stone-200/90 bg-white/95 px-4 py-3 shadow-[0_16px_45px_-20px_rgba(41,37,36,.42)] backdrop-blur" style={{ left: clamp(tooltipNode.x + activeCanvasPanX + 34, 12, sceneSize.width - 274), top: clamp(tooltipNode.y + activeCanvasPanY - 28, 12, sceneSize.height - 184) }}><div className="mb-2 flex items-start justify-between gap-2"><p className="font-serif text-[15px] leading-4 text-stone-900">{hovered.company}</p><span className={hovered.pnl >= 0 ? "font-mono text-[10px] text-emerald-700" : "font-mono text-[10px] text-[#ff3b3b]"}>{hovered.pnl >= 0 ? "+" : ""}{hovered.pnlPercent.toFixed(1)}%</span></div><div className="grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-[10px] tabular-nums">{viewMode === "transactions" && <><span className="text-stone-400">Date</span><span className="text-right">{formatTransactionDate(hovered.oldestDate)}</span></>}<span className="text-stone-400">Qty</span><span className="text-right">{hovered.qty}</span><span className="text-stone-400">Buy price</span><span className="text-right">{formatPrice(hovered.avgPrice)}</span><span className="text-stone-400">Current price</span><span className="text-right">{formatPrice(hovered.currentPrice)}</span><span className="text-stone-400">Invested</span><span className="text-right">{formatCurrency(hovered.investedValue)}</span><span className="text-stone-400">Value</span><span className="text-right">{formatCurrency(hovered.currentValue)}</span><span className="text-stone-400">P&amp;L</span><span className={hovered.pnl >= 0 ? "text-right text-emerald-700" : "text-right text-[#ff3b3b]"}>{formatCurrency(hovered.pnl)}</span></div></motion.aside>}</AnimatePresence>
+      <AnimatePresence>{hovered && tooltipNode && !selected && <motion.aside initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.16 }} className="pointer-events-none fixed z-30 w-64 rounded-xl border border-stone-200/90 bg-white/95 px-4 py-3 shadow-[0_16px_45px_-20px_rgba(41,37,36,.42)] backdrop-blur" style={{ left: clamp(tooltipNode.x + activeCanvasPanX + 34, 12, sceneSize.width - 274), top: clamp(tooltipNode.y + activeCanvasPanY - 28, 12, sceneSize.height - 184) }}><div className="mb-2 flex items-start justify-between gap-2"><p className="font-serif text-[15px] leading-4 text-stone-900">{hovered.company}</p><span className={hovered.pnl >= 0 ? darkMode ? "font-mono text-[10px] text-[#4ade80]" : "font-mono text-[10px] text-emerald-700" : darkMode ? "font-mono text-[10px] text-[#ff6b6b]" : "font-mono text-[10px] text-[#ff3b3b]"}>{hovered.pnl >= 0 ? "+" : ""}{hovered.pnlPercent.toFixed(1)}%</span></div><div className="grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-[10px] tabular-nums">{viewMode === "transactions" && <><span className="text-stone-400">Date</span><span className="text-right">{formatTransactionDate(hovered.oldestDate)}</span></>}<span className="text-stone-400">Qty</span><span className="text-right">{hovered.qty}</span><span className="text-stone-400">Buy price</span><span className="text-right">{formatPrice(hovered.avgPrice)}</span><span className="text-stone-400">Current price</span><span className="text-right">{formatPrice(hovered.currentPrice)}</span><span className="text-stone-400">Invested</span><span className="text-right">{formatCurrency(hovered.investedValue)}</span><span className="text-stone-400">Value</span><span className="text-right">{formatCurrency(hovered.currentValue)}</span><span className="text-stone-400">P&amp;L</span><span className={hovered.pnl >= 0 ? darkMode ? "text-right text-[#4ade80]" : "text-right text-emerald-700" : darkMode ? "text-right text-[#ff6b6b]" : "text-right text-[#ff3b3b]"}>{formatCurrency(hovered.pnl)}</span></div></motion.aside>}</AnimatePresence>
 
       <AnimatePresence>{viewMode === "holdings" && selected && focusNode && <motion.aside initial={{ opacity: 0, y: 12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.98 }} transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }} className="fixed z-40 w-[min(336px,calc(100vw-28px))] overflow-hidden rounded-2xl border border-stone-200 bg-white/98 shadow-[0_22px_62px_-24px_rgba(41,37,36,.5)] backdrop-blur" style={{ left: clamp(focusOnRight ? focusNode.x + 76 : focusNode.x - 412, 14, sceneSize.width - 350), top: clamp(focusNode.y - 132, 14, sceneSize.height - 494) }}><div className="flex items-start justify-between border-b border-stone-100 px-5 py-4"><div><p className="font-serif text-[19px] leading-5 text-stone-900">{selected.company}</p><p className="mt-1 font-mono text-[9px] uppercase tracking-[.17em] text-stone-400">{selected.lots.length === 1 ? "Transaction lot" : `${selected.lots.length} transaction lots`}</p></div><button type="button" onClick={() => setSelectedId(null)} aria-label="Close details" className="rounded-full p-1 text-stone-500 transition hover:bg-stone-100 hover:text-stone-900"><X size={16} /></button></div><div className="grid grid-cols-2 gap-x-5 border-b border-stone-100 px-5 py-3"><MetricRow label="Quantity" value={selected.qty.toLocaleString("en-IN")} /><MetricRow label="Avg. buy" value={formatPrice(selected.avgPrice)} /><MetricRow label="Current" value={formatPrice(selected.currentPrice)} /><MetricRow label="Unrealized P&L" value={`${selected.pnl >= 0 ? "+" : ""}${formatCurrency(selected.pnl)}`} /></div><div className="max-h-48 overflow-y-auto px-5 py-3"><p className="mb-2 font-mono text-[9px] uppercase tracking-[.18em] text-stone-400">Lot breakdown</p>{selected.lots.map((lot) => { const lotPnl = lot.buy_qty * (lot.current_price - lot.avg_price); const days = ageInDays(lot.buy_date); const completedYears = Math.floor((days ?? 0) / 365); return <div key={lot.id} className="grid grid-cols-[1fr_auto] gap-2 border-t border-stone-100 py-2 first:border-t-0"><div><p className="font-mono text-[10px] text-stone-700">{lot.buy_qty} × {formatPrice(lot.avg_price)}</p><p className="font-mono text-[9px] text-stone-400">{formatTransactionDate(lot.buy_date)}{days ? ` · ${days}d` : ""}{completedYears ? ` · ${completedYears}y complete` : ""}</p></div><span className={lotPnl >= 0 ? "self-center font-mono text-[10px] text-emerald-700" : "self-center font-mono text-[10px] text-[#ff3b3b]"}>{lotPnl >= 0 ? "+" : ""}{formatCurrency(lotPnl)}</span></div>; })}</div>{selected.taxSensitive && <div className="flex items-center gap-2 border-t border-amber-100 bg-amber-50 px-5 py-3 font-mono text-[10px] text-amber-800"><Sparkles size={13} /> Loss lot near/over the 365-day threshold.</div>}</motion.aside>}</AnimatePresence>
 
-      <PortfolioDrawer open={drawerOpen} onOpenChange={setDrawerOpen} viewMode={viewMode} setViewMode={(mode) => { setViewMode(mode); setSelectedId(null); }} colorMetric={colorMetric} setColorMetric={setColorMetric} taxFilter={taxFilter} setTaxFilter={(filter) => { setTaxFilter(filter); setSelectedId(null); }} showEtfs={showEtfs} setShowEtfs={setShowEtfs} darkMode={darkMode} setDarkMode={setDarkMode} etfLotCount={etfLotCount} frozen={frozen} setFrozen={setFrozen} repulsion={repulsion} setRepulsion={setRepulsion} onImportFile={importFile} uploadNotice={uploadNotice} hasDates={timeline.hasDates} onRestore={() => { setRecords(defaultPortfolio); setUploadNotice(null); setSelectedId(null); setHoveredId(null); resetViewport(); }} visibleKittyCount={visiblePoints.length} loadedLotCount={eligibleRecords.length} />
+      <PortfolioDrawer open={drawerOpen} onOpenChange={setDrawerOpen} viewMode={viewMode} setViewMode={(mode) => { setViewMode(mode); setSelectedId(null); }} colorMetric={colorMetric} setColorMetric={setColorMetric} taxFilter={taxFilter} setTaxFilter={(filter) => { setTaxFilter(filter); setSelectedId(null); }} showEtfs={showEtfs} setShowEtfs={setShowEtfs} darkMode={darkMode} etfLotCount={etfLotCount} frozen={frozen} setFrozen={setFrozen} repulsion={repulsion} setRepulsion={setRepulsion} onImportFile={importFile} uploadNotice={uploadNotice} hasDates={timeline.hasDates} onRestore={() => { localStorage.removeItem(PORTFOLIO_STORAGE_KEY); setUploadNotice(null); setSelectedId(null); setHoveredId(null); resetViewport(); setRecords([]); fetch(PORTFOLIO_CSV_URL).then(async (response) => ({ text: await response.text(), lastModified: response.headers.get("last-modified") })).then(({ text, lastModified }) => { const parsed = parsePortfolioCsv(text); if (parsed.records.length) { setRecords(parsed.records); setDataUpdatedAt(lastModified ?? new Date().toISOString()); } }).catch(() => undefined); }} visibleKittyCount={visiblePoints.length} loadedLotCount={eligibleRecords.length} portfolioTotals={portfolioTotals} />
       <div className={darkMode ? "fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap font-mono text-[9px] tracking-[.08em] text-stone-500" : "fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap font-mono text-[9px] tracking-[.08em] text-stone-400"}><span>Data updated {dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</span><span aria-hidden="true">·</span><a href="https://thecontrarian.in" target="_blank" rel="noreferrer" className={darkMode ? "transition hover:text-stone-200" : "transition hover:text-stone-800"}>© 2026 Mahesh Shantaram / thecontrarian.in</a></div>
     </main>
   );
