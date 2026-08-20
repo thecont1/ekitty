@@ -126,7 +126,7 @@ function CatGlyph({ point, size, stroke, treatment, bobDuration, focused, frozen
   const skew = ((variation >>> 11) % 9) - 4;
   const heightScale = 0.94 + ((variation >>> 16) % 15) / 100;
   const tailArc = variation % 3 === 0 ? "M150 112 C174 104 176 82 162 72" : variation % 3 === 1 ? "M148 117 C172 118 181 97 166 83" : "M147 110 C171 95 166 77 157 67";
-  const bobStyle = frozen ? undefined : { animation: `kitty-bob ${bobDuration}s cubic-bezier(.42,0,.3,1) infinite alternate`, animationDelay: `-${(hash(point.id) % 1000) / 1000}s` };
+  const bobStyle = frozen ? undefined : { animationName: "kitty-bob", animationDuration: `${bobDuration}s`, animationTimingFunction: "cubic-bezier(.42,0,.3,1)", animationIterationCount: "infinite", animationDirection: "alternate", animationDelay: `-${(hash(point.id) % 1000) / 1000}s` };
 
   return (
     <button type="button" aria-label={`${point.company}: ${formatCurrency(point.pnl)} unrealized profit and loss`} className="group absolute z-10 block origin-center border-0 bg-transparent p-0 outline-none focus-visible:z-30 focus-visible:outline-none" style={{ width: size, height: size, transform: "translate(-50%, -50%)", cursor: MOUSE_CURSOR }} onPointerDown={(event) => event.stopPropagation()} onMouseEnter={onHover} onFocus={onHover} onMouseLeave={onLeave} onBlur={onLeave} onClick={onClick}>

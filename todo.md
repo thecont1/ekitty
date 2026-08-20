@@ -80,3 +80,4 @@
 - [x] Remove the Mickey trail effect and retain only the single shocking-pink cursor.
 - [x] Normalize the cursor to one clean single-stroke shocking-pink Mickey rendering with no trail layer.
 - [x] Make Grouped Holdings the default view and clear stale trail-handler references.
+- [x] Replace the kitty animation shorthand plus animationDelay with separate animation properties to eliminate the React style warning.
