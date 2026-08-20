@@ -72,3 +72,4 @@
 - [x] Add an all-world fit toggle below Reset.
 - [x] Give Grouped Holdings the same larger panning canvas.
 - [x] Widen each transaction month strip to three times its current width while preserving camera bounds and fit behavior.
+- [x] Recolour the mouse cursor shocking pink and add a restrained pointer-motion trail.

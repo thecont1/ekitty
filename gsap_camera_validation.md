@@ -19,3 +19,8 @@ The browser exposed 185 transaction kitty buttons, including both positive and n
 
 The Manus Browser fit-toggle round trip also passed: clicking the control changed its accessible label to “Restore normal world view” and displayed the whole world; clicking again returned the label to “Show all kitties” and restored the normal view.
 
+
+## Shocking-pink cursor verification
+
+The Manus Browser preview shows the Mickey cursor rendered in shocking pink (#ff1493). Moving the pointer over the kitty field produced a restrained sequence of smaller, lower-opacity pink dots behind the cursor; the fixed controls and dateline remained unaffected. The normal tooltip interaction continued to work during the movement test.
+
