@@ -15,11 +15,18 @@ import {
   formatCurrency,
   formatPrice,
   parsePortfolioCsv,
-  pointScaleValue,
-  type KittyScaleMetric,
   type PortfolioLot,
   type PortfolioPoint,
 } from "@/lib/portfolio";
+import {
+  deriveHoldingVisuals,
+  getKittyEmphasis,
+  getKittyPigment,
+  getKittyRadius,
+  type EmphasisStyle,
+  type PigmentStyle,
+  type VisualLens,
+} from "@/lib/portfolioVisuals";
 import { clampTimelinePan, legendShouldAutoOpen, writeLegendSeen } from "@/lib/uiState";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { gsap } from "gsap";
@@ -31,21 +38,15 @@ import darkModeIcon from "@/assets/dark_and_cool.png";
 import portfolioHelpIcon from "@/assets/portfolio-help.png";
 
 type ViewMode = "holdings" | "transactions";
-type ColorMetric = "percent" | "absolute";
 type TaxFilter = "all" | "highlight" | "isolate";
 type SimNode = { x: number; y: number; vx: number; vy: number };
-type FillTreatment = { fill: string; ink: string; fillOpacity: number; segment: string; neutral: boolean };
-type VisiblePoint = { point: PortfolioPoint; size: number; stroke: number; treatment: FillTreatment; bobDuration: number };
+type VisiblePoint = { point: PortfolioPoint; size: number; stroke: number; pigment: PigmentStyle; emphasis: EmphasisStyle; bobDuration: number };
 type Timeline = { months: number[]; indexFor: Record<string, number>; hasDates: boolean };
 type TimelineGesture = "idle" | "pan";
 type TimelineDrag = { startX: number; startY: number; startPanX: number; startPanY: number; pointerId: number; gesture: TimelineGesture };
 
 const PORTFOLIO_CSV_URL = "/data/portfolio.csv";
 const PORTFOLIO_STORAGE_KEY = "ekitty-portfolio-csv";
-const LOSS_RED = "#ff3b3b";
-const GAIN_GREEN = "#17885b";
-const LOSS_RED_DARK = "#ff6b6b";
-const GAIN_GREEN_DARK = "#4ade80";
 const SHOCKING_PINK = "#ff1493";
 const MOUSE_CURSOR = "none";
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
@@ -57,45 +58,6 @@ function hash(value: string) {
 function scale(value: number, min: number, max: number, outputMin: number, outputMax: number) {
   if (max === min) return (outputMin + outputMax) / 2;
   return outputMin + ((value - min) / (max - min)) * (outputMax - outputMin);
-}
-
-function mixHex(start: string, end: string, amount: number) {
-  const from = start.slice(1);
-  const to = end.slice(1);
-  const mixed = [0, 2, 4].map((offset) => Math.round(parseInt(from.slice(offset, offset + 2), 16) + (parseInt(to.slice(offset, offset + 2), 16) - parseInt(from.slice(offset, offset + 2), 16)) * amount).toString(16).padStart(2, "0"));
-  return `#${mixed.join("")}`;
-}
-
-function percentileRanks(points: PortfolioPoint[], metric: ColorMetric) {
-  const values = points.map((point) => Math.abs(metric === "absolute" ? point.pnl : point.pnlPercent)).sort((a, b) => a - b);
-  return Object.fromEntries(points.map((point) => {
-    const value = Math.abs(metric === "absolute" ? point.pnl : point.pnlPercent);
-    const firstGreater = values.findIndex((candidate) => candidate > value);
-    const rank = ((firstGreater === -1 ? values.length : firstGreater) / Math.max(values.length, 1)) * 100;
-    return [point.id, rank];
-  }));
-}
-
-function treatmentFor(point: PortfolioPoint, percentile: number): FillTreatment {
-  if (Math.abs(point.pnl) < 50 || percentile < 2) return { fill: "transparent", ink: "#8da0a9", fillOpacity: 0, segment: "<p2", neutral: true };
-  if (percentile <= 5) {
-    const target = point.pnl >= 0 ? GAIN_GREEN : LOSS_RED;
-    const pale = point.pnl >= 0 ? "#effaf4" : "#fff1f1";
-    return { fill: mixHex(pale, target, 0.12), ink: mixHex("#8da0a9", target, 0.18), fillOpacity: 0.12, segment: "p5", neutral: false };
-  }
-  const stops = [5, 10, 25, 50, 75, 90, 95, 98];
-  const stopIndex = stops.findIndex((stop) => percentile <= stop);
-  const intensity = clamp((stopIndex + 2) / (stops.length + 1), 0.2, 1);
-  const positive = point.pnl >= 0;
-  const target = positive ? GAIN_GREEN : LOSS_RED;
-  const pale = positive ? "#effaf4" : "#fff1f1";
-  return {
-    fill: mixHex(pale, target, intensity),
-    ink: mixHex("#87969b", target, 0.45 + intensity * 0.55),
-    fillOpacity: 0.22 + intensity * 0.68,
-    segment: percentile > 98 ? ">p98" : `p${stops[Math.max(stopIndex, 0)]}`,
-    neutral: false,
-  };
 }
 
 function serialFromDate(date?: string) {
@@ -129,7 +91,7 @@ function createTimeline(points: PortfolioPoint[]): Timeline {
   return { months, indexFor, hasDates: dated.length > 0 };
 }
 
-function CatGlyph({ point, size, stroke, treatment, bobDuration, focused, frozen, searchHidden, onHover, onLeave, onClick }: VisiblePoint & { focused: boolean; frozen: boolean; searchHidden: boolean; onHover: () => void; onLeave: () => void; onClick: () => void }) {
+function CatGlyph({ point, size, stroke, pigment, emphasis, bobDuration, visualLens, focused, frozen, searchHidden, onHover, onLeave, onClick }: VisiblePoint & { visualLens: VisualLens; focused: boolean; frozen: boolean; searchHidden: boolean; onHover: () => void; onLeave: () => void; onClick: () => void }) {
   const variation = hash(point.id);
   const lean = (variation % 11) - 5;
   const widthScale = 0.93 + ((variation >>> 5) % 13) / 100;
@@ -143,13 +105,15 @@ function CatGlyph({ point, size, stroke, treatment, bobDuration, focused, frozen
     : "";
 
   return (
-    <button type="button" tabIndex={searchHidden ? -1 : 0} aria-label={`${point.company}: ${point.pnl >= 0 ? "profit" : "loss"} ${formatCurrency(Math.abs(point.pnl))}, ${Math.abs(point.pnlPercent).toFixed(1)} percent${moverLabel}${point.isETF ? ", ETF" : ""}${point.taxSensitive ? ", tax-loss eligible" : ""}`} className="group absolute z-10 block origin-center border-0 bg-transparent p-0 outline-none focus-visible:z-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D8AE37]" style={{ width: size, height: size, transform: "translate(-50%, -50%)", cursor: MOUSE_CURSOR }} onPointerDown={(event) => event.stopPropagation()} onMouseEnter={onHover} onFocus={onHover} onMouseLeave={onLeave} onBlur={onLeave} onClick={onClick}>
+    <button type="button" tabIndex={searchHidden ? -1 : 0} aria-label={`${point.company}: ${point.pnl >= 0 ? "profit" : "loss"} ${formatCurrency(Math.abs(point.pnl))}, ${Math.abs(point.pnlPercent).toFixed(1)} percent; active ${visualLens.replaceAll("-", " ")} lens${moverLabel}${point.isETF ? ", ETF" : ""}${point.taxSensitive ? ", tax-loss eligible" : ""}`} className="group absolute z-10 block origin-center border-0 bg-transparent p-0 outline-none focus-visible:z-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D8AE37]" style={{ width: size, height: size, transform: "translate(-50%, -50%)", cursor: MOUSE_CURSOR }} onPointerDown={(event) => event.stopPropagation()} onMouseEnter={onHover} onFocus={onHover} onMouseLeave={onLeave} onBlur={onLeave} onClick={onClick}>
       <span className="relative block h-full w-full transition-transform duration-200 ease-out group-hover:scale-[1.055] group-focus-visible:scale-[1.055]" style={{ transform: `rotate(${lean}deg) skewX(${skew}deg) scale(${widthScale}, ${heightScale})` }}>
         <span className="relative block h-full w-full" style={bobStyle}>
+          {emphasis.haloOpacity > 0 && <span aria-hidden="true" className="absolute inset-[3%] rounded-full border-current" style={{ borderStyle: point.pnl < 0 ? "dashed" : "solid", borderWidth: emphasis.haloWidth, opacity: emphasis.haloOpacity, color: pigment.ink }} />}
           {focused && <span className="absolute inset-[5%] rounded-full border-[1.5px] border-[#D8AE37]" />}
-          <PortfolioKittySvg stroke={treatment.ink} fill={treatment.fill} fillOpacity={treatment.fillOpacity} strokeWidth={stroke} className="block h-full w-full overflow-visible" />
-          <svg viewBox="0 0 192 192" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" aria-hidden="true"><path d={tailArc} fill="none" stroke={treatment.ink} strokeWidth={Math.max(1.1, stroke * 0.68)} strokeLinecap="round" /></svg>
-          {point.taxSensitive && <span aria-hidden="true" className="absolute left-[42.8%] top-[53.2%] h-[10%] min-h-[12px] w-[10%] min-w-[12px] rounded-full border-[1.25px] border-black bg-[#D8AE37] shadow-[0_0_0_1px_rgba(255,255,255,.65)]" />}
+          <PortfolioKittySvg stroke={pigment.ink} fill={pigment.fill} fillOpacity={pigment.fillOpacity} strokeWidth={stroke} className="block h-full w-full overflow-visible" />
+          <svg viewBox="0 0 192 192" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" aria-hidden="true"><path d={tailArc} fill="none" stroke={pigment.ink} strokeWidth={Math.max(1.1, stroke * 0.68)} strokeLinecap="round" /></svg>
+          <span aria-hidden="true" className="absolute left-[44%] top-[55%] grid h-[12%] min-h-[13px] w-[12%] min-w-[13px] place-items-center rounded-full border border-current bg-white/90 font-mono text-[9px] font-bold leading-none text-stone-800">{emphasis.symbol}</span>
+          {point.taxSensitive && <span aria-hidden="true" className="absolute left-[30%] top-[53.2%] h-[10%] min-h-[12px] w-[10%] min-w-[12px] rounded-full border-[1.25px] border-black bg-[#D8AE37] shadow-[0_0_0_1px_rgba(255,255,255,.65)]" />}
           {isMover && <span aria-hidden="true" className="kitty-mover-ring absolute inset-[2%] rounded-full border-2 border-current opacity-50" />}
           {point.isETF && <span className="absolute left-[54%] top-[60%] rounded-sm border border-[#9AA5AA] bg-white/95 px-[7%] py-[2%] font-mono text-[7px] font-semibold tracking-[.08em] text-stone-700 shadow-[0_1px_3px_rgba(41,37,36,.12)]">ETF</span>}
         </span>
@@ -165,8 +129,7 @@ function MetricRow({ label, value }: { label: string; value: string }) {
 export default function Home() {
   const [records, setRecords] = useState<PortfolioLot[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("holdings");
-  const [colorMetric, setColorMetric] = useState<ColorMetric>("absolute");
-  const [kittyScale, setKittyScale] = useState<KittyScaleMetric>("invested");
+  const [visualLens, setVisualLens] = useState<VisualLens>("portfolio-impact");
   const [taxFilter, setTaxFilter] = useState<TaxFilter>("all");
   const [showEtfs, setShowEtfs] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
@@ -238,7 +201,8 @@ export default function Home() {
     const sorted = [...fieldPoints].sort((left, right) => left.pnl - right.pnl);
     return Object.fromEntries(sorted.map((point, index) => [point.id, sorted.length <= 1 ? 0.5 : index / (sorted.length - 1)]));
   }, [fieldPoints]);
-  const rankings = useMemo(() => percentileRanks(fieldPoints, colorMetric), [colorMetric, fieldPoints]);
+  const preparedFieldPoints = useMemo(() => deriveHoldingVisuals(fieldPoints, visualLens), [fieldPoints, visualLens]);
+  const fieldPointsById = useMemo(() => new Map(preparedFieldPoints.map((point) => [point.id, point])), [preparedFieldPoints]);
 
   const setCameraTransform = useCallback((x: number, y: number, scale = 1) => {
     camera.current.x = x;
@@ -275,15 +239,23 @@ export default function Home() {
   }, [minCanvasPanX, prefersReducedMotion, sceneSize.width, settleCamera]);
 
   const visiblePoints = useMemo<VisiblePoint[]>(() => {
-    const values = fieldPoints.map((point) => pointScaleValue(point, kittyScale) ** 1.14);
-    const min = Math.min(...values, 0);
-    const max = Math.max(...values, 1);
     const maxQty = Math.max(...fieldPoints.map((point) => point.qty), 1);
     const compactField = sceneSize.width < 640;
     const minSize = compactField ? (viewMode === "transactions" ? 28 : 38) : (viewMode === "transactions" ? 34 : 46);
     const maxSize = compactField ? (viewMode === "transactions" ? 140 : 212) : (viewMode === "transactions" ? 236 : 440);
-    return fieldPoints.map((point) => ({ point, size: scale(pointScaleValue(point, kittyScale) ** 1.14, min, max, minSize, maxSize), stroke: scale(point.qty, 0, maxQty, 1.65, 4.5), treatment: treatmentFor(point, rankings[point.id] ?? 0), bobDuration: clamp(3.6 - Math.min(1.75, Math.abs(point.pnlPercent) / 35), 1.7, 3.6) }));
-  }, [fieldPoints, kittyScale, rankings, sceneSize.width, viewMode]);
+    return fieldPoints.map((point) => {
+      const prepared = fieldPointsById.get(point.id);
+      const visuals = prepared?.visuals ?? { sizeNorm: 0.5, colorNorm: 0, impactNorm: 0 };
+      return {
+        point,
+        size: getKittyRadius(visuals.sizeNorm, minSize, maxSize),
+        stroke: scale(point.qty, 0, maxQty, 1.65, 4.5),
+        pigment: getKittyPigment(visuals.colorNorm, darkMode),
+        emphasis: getKittyEmphasis(visuals.impactNorm, point.pnl),
+        bobDuration: clamp(3.6 - Math.min(1.75, Math.abs(point.pnlPercent) / 35), 1.7, 3.6),
+      };
+    });
+  }, [darkMode, fieldPoints, fieldPointsById, sceneSize.width, viewMode]);
 
   const selected = visiblePoints.find((entry) => entry.point.id === selectedId)?.point ?? null;
   const hovered = visiblePoints.find((entry) => entry.point.id === hoveredId)?.point ?? null;
@@ -532,7 +504,7 @@ export default function Home() {
       <div className="fixed right-3 top-[11.75rem] z-50 flex flex-col items-center gap-2">
         <button type="button" aria-label="Show portfolio legend" aria-expanded={legendOpen} onClick={() => setLegendOpen((current) => { if (current) writeLegendSeen(window.localStorage); return !current; })} className="grid min-h-11 min-w-11 place-items-center rounded-full transition hover:-translate-y-0.5 active:scale-95"><img src={portfolioHelpIcon} alt="" className={darkMode ? "h-9 w-9 invert" : "h-9 w-9"} /></button>
       </div>
-      {legendOpen && <PortfolioLegend darkMode={darkMode} onClose={() => { setLegendOpen(false); writeLegendSeen(window.localStorage); }} />}
+      {legendOpen && <PortfolioLegend darkMode={darkMode} visualLens={visualLens} onClose={() => { setLegendOpen(false); writeLegendSeen(window.localStorage); }} />}
       {records.length === 0 && <div className="fixed inset-0 z-[55] flex flex-col items-center justify-center" onDragOver={(event) => { event.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={(event) => { event.preventDefault(); setDragOver(false); importFile(event.dataTransfer.files[0]); }}><label className="flex cursor-pointer flex-col items-center gap-6" onDragOver={(event) => { event.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={(event) => { event.preventDefault(); setDragOver(false); importFile(event.dataTransfer.files[0]); }}><div className="transition-transform duration-200" style={{ transform: dragOver ? "scale(1.08)" : "scale(1)" }}><PortfolioKittySvg stroke={dragOver ? "#D8AE37" : darkMode ? "#a6c2cc" : "#ff3b3b"} fill={dragOver ? "#D8AE37" : "transparent"} fillOpacity={dragOver ? 0.08 : 0} strokeWidth={dragOver ? 3 : 2} className="h-48 w-48" /></div><div className="text-center"><p className={darkMode ? "font-serif text-2xl text-stone-100" : "font-serif text-2xl text-stone-900"}>{dragOver ? "Release to load your portfolio" : "Drop your portfolio.csv here"}</p><p className={darkMode ? "mt-2 font-mono text-[10px] tracking-[.12em] text-stone-400" : "mt-2 font-mono text-[10px] tracking-[.12em] text-stone-400"}>or click to browse · columns: company · buy_qty · avg_price · current_price · txn_date</p></div><input type="file" accept=".csv,text/csv" className="sr-only" onChange={(event) => importFile(event.target.files?.[0])} /></label>{uploadNotice && <p className={uploadNotice.kind === "error" ? darkMode ? "mt-6 font-mono text-[10px] text-[#ff6b6b]" : "mt-6 font-mono text-[10px] text-[#ff3b3b]" : darkMode ? "mt-6 font-mono text-[10px] text-[#4ade80]" : "mt-6 font-mono text-[10px] text-emerald-700"}>{uploadNotice.message}</p>}</div>}
       {viewMode === "transactions" && <div ref={gridWorld} aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-0 overflow-hidden" style={{ width: virtualCanvasWidth, height: virtualCanvasHeight }}>{pnlTicks.map((tick) => { const ratio = (tick + pnlBound) / (pnlBound * 2); return <div key={`grid-${tick}`} className={darkMode ? "absolute left-0 right-0 border-t border-[#20353b]/28" : "absolute left-0 right-0 border-t border-[#dbeef8]/34"} style={{ top: pnlScaleMargin + (1 - ratio) * (transactionLayoutHeight - pnlScaleMargin * 2) }} />; })}{timeline.months.map((month, index) => <div key={month} className={darkMode ? "absolute bottom-0 top-0 border-l border-[#284149]/42" : "absolute bottom-0 top-0 border-l border-[#edf7ff]/46"} style={{ left: index * transactionStripWidth }} />)}{elapsedYearGuides.map((guide) => { const index = timeline.months.indexOf(guide.serial); return <div key={`year-${guide.years}`} className="absolute bottom-0 top-0 w-[3px] bg-[#70b9e8] shadow-[0_0_0_1px_rgba(112,185,232,.14)]" style={{ left: index * transactionStripWidth }} />; })}</div>}
       {viewMode === "transactions" && <div aria-hidden="true" className={darkMode ? "pointer-events-none fixed inset-x-0 top-0 z-20 h-10 overflow-hidden bg-[#101617]/88 backdrop-blur-[2px]" : "pointer-events-none fixed inset-x-0 top-0 z-20 h-10 overflow-hidden bg-white/88 backdrop-blur-[2px]"}><div ref={datelineWorld} className="relative h-full" style={{ width: virtualCanvasWidth }}>{timeline.months.map((month, index) => index % 3 === 0 && <span key={`label-${month}`} className={darkMode ? "absolute top-3 hidden font-mono text-[9px] font-medium tracking-[.12em] text-[#a6c2cc] md:block" : "absolute top-3 hidden font-mono text-[9px] font-medium tracking-[.12em] text-[#61869d] md:block"} style={{ left: index * transactionStripWidth + 4 }}>{labelMonth(month)}</span>)}{elapsedYearGuides.map((guide) => { const index = timeline.months.indexOf(guide.serial); return <span key={`year-label-${guide.years}`} className="absolute top-7 font-mono text-[8px] tracking-[.12em] text-[#4096cf]" style={{ left: index * transactionStripWidth + 5 }}>{guide.years}y</span>; })}</div></div>}
@@ -549,7 +521,7 @@ export default function Home() {
           const node = nodes.current[entry.point.id]; if (!node) return null;
           const searchMatch = !searchTerm || entry.point.company.toLocaleLowerCase().includes(searchTerm);
           const muted = (taxFilter === "highlight" && !entry.point.taxSensitive) || (viewMode === "transactions" && focusedCompany !== null && entry.point.company !== focusedCompany) || !searchMatch;
-          return <div key={entry.point.id} aria-hidden={searchTerm && !searchMatch ? "true" : undefined} className={muted ? "opacity-20 grayscale-[.32] transition-opacity duration-300" : "transition-opacity duration-300"} style={{ position: "absolute", left: node.x, top: node.y }}><CatGlyph {...entry} searchHidden={Boolean(searchTerm && !searchMatch)} focused={viewMode === "transactions" ? focusedCompany === entry.point.company || Boolean(searchTerm && searchMatch) : selectedId === entry.point.id} frozen={effectiveFrozen} onHover={() => setHoveredId(entry.point.id)} onLeave={() => setHoveredId((current) => current === entry.point.id ? null : current)} onClick={() => { if (viewMode === "transactions") { setFocusedCompany((current) => current === entry.point.company ? null : entry.point.company); setSelectedId(null); setHoveredId(null); } else { setSelectedId(entry.point.id); setHoveredId(null); } }} /></div>;
+          return <div key={entry.point.id} aria-hidden={searchTerm && !searchMatch ? "true" : undefined} className={muted ? "opacity-20 grayscale-[.32] transition-opacity duration-300" : "transition-opacity duration-300"} style={{ position: "absolute", left: node.x, top: node.y }}><CatGlyph {...entry} visualLens={visualLens} searchHidden={Boolean(searchTerm && !searchMatch)} focused={viewMode === "transactions" ? focusedCompany === entry.point.company || Boolean(searchTerm && searchMatch) : selectedId === entry.point.id} frozen={effectiveFrozen} onHover={() => setHoveredId(entry.point.id)} onLeave={() => setHoveredId((current) => current === entry.point.id ? null : current)} onClick={() => { if (viewMode === "transactions") { setFocusedCompany((current) => current === entry.point.company ? null : entry.point.company); setSelectedId(null); setHoveredId(null); } else { setSelectedId(entry.point.id); setHoveredId(null); } }} /></div>;
         })}
       </section>
 
@@ -560,7 +532,7 @@ export default function Home() {
 
       <AnimatePresence>{viewMode === "holdings" && selected && focusNode && <motion.aside initial={{ opacity: 0, y: 12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.98 }} transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }} className="fixed z-40 w-[min(336px,calc(100vw-28px))] overflow-hidden rounded-2xl border border-stone-200 bg-white/98 shadow-[0_22px_62px_-24px_rgba(41,37,36,.5)] backdrop-blur" style={{ left: clamp(focusOnRight ? focusNode.x + 76 : focusNode.x - 412, 14, sceneSize.width - 350), top: clamp(focusNode.y - 132, 14, sceneSize.height - 494) }}><div className="flex items-start justify-between border-b border-stone-100 px-5 py-4"><div><p className="font-serif text-[19px] leading-5 text-stone-900">{selected.company}</p><p className="mt-1 font-mono text-[9px] uppercase tracking-[.17em] text-stone-400">{selected.lots.length === 1 ? "Transaction lot" : `${selected.lots.length} transaction lots`}</p></div><button type="button" onClick={() => setSelectedId(null)} aria-label="Close details" className="rounded-full p-1 text-stone-500 transition hover:bg-stone-100 hover:text-stone-900"><X size={16} /></button></div><div className="grid grid-cols-2 gap-x-5 border-b border-stone-100 px-5 py-3"><MetricRow label="Quantity" value={selected.qty.toLocaleString("en-IN")} /><MetricRow label="Avg. buy" value={formatPrice(selected.avgPrice)} /><MetricRow label="Current" value={formatPrice(selected.currentPrice)} /><MetricRow label="Unrealized P&L" value={`${selected.pnl >= 0 ? "+" : ""}${formatCurrency(selected.pnl)}`} /></div><div className="max-h-48 overflow-y-auto px-5 py-3"><p className="mb-2 font-mono text-[9px] uppercase tracking-[.18em] text-stone-400">Lot breakdown</p>{selected.lots.map((lot) => { const lotPnl = lot.buy_qty * (lot.current_price - lot.avg_price); const days = ageInDays(lot.buy_date); const completedYears = Math.floor((days ?? 0) / 365); return <div key={lot.id} className="grid grid-cols-[1fr_auto] gap-2 border-t border-stone-100 py-2 first:border-t-0"><div><p className="font-mono text-[10px] text-stone-700">{lot.buy_qty} × {formatPrice(lot.avg_price)}</p><p className="font-mono text-[9px] text-stone-400">{formatTransactionDate(lot.buy_date)}{days ? ` · ${days}d` : ""}{completedYears ? ` · ${completedYears}y complete` : ""}</p></div><span className={lotPnl >= 0 ? "self-center font-mono text-[10px] text-emerald-700" : "self-center font-mono text-[10px] text-[#ff3b3b]"}>{lotPnl >= 0 ? "+" : ""}{formatCurrency(lotPnl)}</span></div>; })}</div>{selected.taxSensitive && <div className="flex items-center gap-2 border-t border-amber-100 bg-amber-50 px-5 py-3 font-mono text-[10px] text-amber-800"><Sparkles size={13} /> Loss lot near/over the 365-day threshold.</div>}</motion.aside>}</AnimatePresence>
 
-      <PortfolioDrawer open={drawerOpen} onOpenChange={setDrawerOpen} viewMode={viewMode} setViewMode={(mode) => { setViewMode(mode); setSelectedId(null); }} colorMetric={colorMetric} setColorMetric={setColorMetric} kittyScale={kittyScale} setKittyScale={setKittyScale} taxFilter={taxFilter} setTaxFilter={(filter) => { setTaxFilter(filter); setSelectedId(null); }} showEtfs={showEtfs} setShowEtfs={setShowEtfs} darkMode={darkMode} etfLotCount={etfLotCount} frozen={frozen} setFrozen={setFrozen} reducedMotion={reducedMotion} repulsion={repulsion} setRepulsion={setRepulsion} onImportFile={importFile} uploadNotice={uploadNotice} hasDates={timeline.hasDates} onRestore={() => { localStorage.removeItem(PORTFOLIO_STORAGE_KEY); setUploadNotice(null); setSelectedId(null); setHoveredId(null); resetViewport(); setRecords([]); fetch(PORTFOLIO_CSV_URL).then(async (response) => ({ text: await response.text(), lastModified: response.headers.get("last-modified") })).then(({ text, lastModified }) => { const parsed = parsePortfolioCsv(text); if (parsed.records.length) { setRecords(parsed.records); setDataUpdatedAt(lastModified ?? new Date().toISOString()); } }).catch(() => undefined); }} visibleKittyCount={visiblePoints.length} loadedLotCount={eligibleRecords.length} />
+      <PortfolioDrawer open={drawerOpen} onOpenChange={setDrawerOpen} viewMode={viewMode} setViewMode={(mode) => { setViewMode(mode); setSelectedId(null); }} visualLens={visualLens} setVisualLens={setVisualLens} taxFilter={taxFilter} setTaxFilter={(filter) => { setTaxFilter(filter); setSelectedId(null); }} showEtfs={showEtfs} setShowEtfs={setShowEtfs} darkMode={darkMode} etfLotCount={etfLotCount} frozen={frozen} setFrozen={setFrozen} reducedMotion={reducedMotion} repulsion={repulsion} setRepulsion={setRepulsion} onImportFile={importFile} uploadNotice={uploadNotice} hasDates={timeline.hasDates} onRestore={() => { localStorage.removeItem(PORTFOLIO_STORAGE_KEY); setUploadNotice(null); setSelectedId(null); setHoveredId(null); resetViewport(); setRecords([]); fetch(PORTFOLIO_CSV_URL).then(async (response) => ({ text: await response.text(), lastModified: response.headers.get("last-modified") })).then(({ text, lastModified }) => { const parsed = parsePortfolioCsv(text); if (parsed.records.length) { setRecords(parsed.records); setDataUpdatedAt(lastModified ?? new Date().toISOString()); } }).catch(() => undefined); }} visibleKittyCount={visiblePoints.length} loadedLotCount={eligibleRecords.length} />
       <div className={darkMode ? "fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap font-mono text-[9px] tracking-[.08em] text-stone-500" : "fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap font-mono text-[9px] tracking-[.08em] text-stone-400"}><span>Data updated {dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</span><span aria-hidden="true">·</span><a href="https://thecontrarian.in" target="_blank" rel="noreferrer" className={darkMode ? "transition hover:text-stone-200" : "transition hover:text-stone-800"}>© 2026 Mahesh Shantaram / thecontrarian.in</a></div>
     </main>
   );
