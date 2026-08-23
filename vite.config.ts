@@ -162,6 +162,15 @@ function vitePluginStorageProxy(): Plugin {
           return;
         }
 
+        // Local CSVs are the canonical privacy-preserving data source. The
+        // legacy Forge proxy remains only as a fallback for missing files.
+        const localPath = path.join(PROJECT_ROOT, "client", "public", "data", filename);
+        if (fs.existsSync(localPath) && fs.statSync(localPath).isFile()) {
+          res.writeHead(200, { "Content-Type": "text/csv; charset=utf-8", "Cache-Control": "no-store" });
+          fs.createReadStream(localPath).pipe(res);
+          return;
+        }
+
         const forgeBaseUrl = (process.env.BUILT_IN_FORGE_API_URL || "").replace(/\/+$/, "");
         const forgeKey = process.env.BUILT_IN_FORGE_API_KEY;
 
