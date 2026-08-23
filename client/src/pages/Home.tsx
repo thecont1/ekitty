@@ -144,8 +144,7 @@ function CatGlyph({ point, size, stroke, treatment, bobDuration, focused, frozen
           {focused && <span className="absolute inset-[5%] rounded-full border-[1.5px] border-[#D8AE37]" />}
           <PortfolioKittySvg stroke={treatment.ink} fill={treatment.fill} fillOpacity={treatment.fillOpacity} strokeWidth={stroke} className="block h-full w-full overflow-visible" />
           <svg viewBox="0 0 192 192" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" aria-hidden="true"><path d={tailArc} fill="none" stroke={treatment.ink} strokeWidth={Math.max(1.1, stroke * 0.68)} strokeLinecap="round" /></svg>
-          {point.taxSensitive && <span className="absolute left-[42.8%] top-[53.2%] h-[10%] w-[10%] rounded-full border-[1.25px] border-black bg-[#D8AE37] shadow-[0_0_0_1px_rgba(255,255,255,.65)]" />}
-          <span aria-hidden="true" className="absolute left-[43%] top-[53%] grid h-[11%] min-h-[12px] w-[11%] min-w-[12px] place-items-center rounded-full border border-current bg-white font-mono text-[7px] font-bold leading-none text-stone-900">{point.pnl >= 0 ? "+" : "−"}</span>
+          {point.taxSensitive && <span aria-hidden="true" className="absolute left-[42.8%] top-[53.2%] h-[10%] min-h-[12px] w-[10%] min-w-[12px] rounded-full border-[1.25px] border-black bg-[#D8AE37] shadow-[0_0_0_1px_rgba(255,255,255,.65)]" />}
           {point.dayChangePercent !== undefined && Math.abs(point.dayChangePercent) >= 2 && <span aria-hidden="true" className="kitty-mover-ring absolute inset-[2%] rounded-full border-2 border-current opacity-50" />}
           {point.isETF && <span className="absolute left-[54%] top-[60%] rounded-sm border border-[#9AA5AA] bg-white/95 px-[7%] py-[2%] font-mono text-[7px] font-semibold tracking-[.08em] text-stone-700 shadow-[0_1px_3px_rgba(41,37,36,.12)]">ETF</span>}
         </span>
