@@ -51,7 +51,7 @@ export default function PortfolioDrawer({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetTrigger asChild>
-        <button type="button" aria-label="Open portfolio controls" className="ekitty-menu-trigger fixed right-3 top-[8.5rem] z-50 grid min-h-11 min-w-11 place-items-center rounded-full transition duration-200 hover:-translate-y-0.5 active:scale-95"><img src={litterBoxIcon} alt="" className={darkMode ? "h-11 w-11 invert" : "h-11 w-11"} /></button>
+        <button type="button" aria-label="Open portfolio controls" className="fixed right-3 top-[8.5rem] z-50 grid min-h-11 min-w-11 place-items-center rounded-full transition duration-200 hover:-translate-y-0.5 active:scale-95"><img src={litterBoxIcon} alt="" className={darkMode ? "h-11 w-11 invert" : "h-11 w-11"} /></button>
       </SheetTrigger>
       <SheetContent side="right" aria-describedby={undefined} className="w-[min(468px,94vw)] gap-0 overflow-hidden border-l border-stone-200 bg-[#fcfcfb] p-0 pt-[9rem] shadow-[-20px_0_60px_-34px_rgba(41,37,36,.48)] sm:max-w-none">
         <SheetTitle className="sr-only">Portfolio controls</SheetTitle>
