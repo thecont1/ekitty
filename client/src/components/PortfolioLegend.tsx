@@ -15,6 +15,7 @@ export default function PortfolioLegend({ darkMode, onClose }: { darkMode: boole
         <li className="flex items-center gap-3"><PortfolioKittySvg stroke="#c52222" fill="#f5b8b8" fillOpacity={0.72} strokeWidth={3} className="h-9 w-9" /><span><strong className="text-current">−</strong> loss</span></li>
         <li className="flex items-center gap-2"><PortfolioKittySvg stroke="currentColor" fill="transparent" fillOpacity={0} strokeWidth={2} className="h-5 w-5" /><PortfolioKittySvg stroke="currentColor" fill="transparent" fillOpacity={0} strokeWidth={2} className="h-10 w-10" /><span>position size</span></li>
         <li className="flex items-center gap-3"><span aria-hidden="true" className="ml-3 h-4 w-4 rounded-full border-2 border-stone-900 bg-[#D8AE37]" /><span>330+ day loss · tax-loss eligible</span></li>
+        <li className="flex items-center gap-3"><span aria-hidden="true" className="ml-3 h-5 w-5 rounded-full border-2 border-current opacity-60" /><span>mover ring · daily movement of at least 2%</span></li>
       </ul>
     </aside>
   );
