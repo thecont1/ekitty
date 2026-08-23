@@ -28,7 +28,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import flagIcon from "@/assets/checkered-flag.svg";
 import broomIcon from "@/assets/broom.svg";
 import darkModeIcon from "@/assets/dark_and_cool.png";
-import portfolioHelpIcon from "@/assets/portfolio-help.svg";
+import portfolioHelpIcon from "@/assets/portfolio-help.png";
 
 type ViewMode = "holdings" | "transactions";
 type ColorMetric = "percent" | "absolute";
