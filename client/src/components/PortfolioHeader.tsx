@@ -16,8 +16,8 @@ export default function PortfolioHeader({ stats, hasPortfolio, darkMode, onOpenP
     : darkMode ? "text-[#ff8a8a]" : "text-[#c52222]";
 
   return (
-    <header className={darkMode ? "fixed right-3 top-3 z-[60] w-[min(288px,calc(100vw-24px))] rounded-2xl bg-[#101617]/94 px-3 py-2.5 text-stone-100 shadow-[0_10px_34px_-28px_rgba(0,0,0,.8)]" : "fixed right-3 top-3 z-[60] w-[min(288px,calc(100vw-24px))] rounded-2xl bg-[#faf9f5]/94 px-3 py-2.5 text-stone-900 shadow-[0_10px_34px_-28px_rgba(41,37,36,.34)]"}>
-      <div className="flex items-center gap-1.5">
+    <header className={darkMode ? "fixed right-3 top-3 z-[60] w-[min(288px,calc(100vw-24px))] rounded-2xl bg-[#101617] px-3 py-2.5 text-stone-100" : "fixed right-3 top-3 z-[60] w-[min(288px,calc(100vw-24px))] rounded-2xl bg-[#faf9f5] px-3 py-2.5 text-stone-900"}>
+      <div className="flex items-center gap-1.5 pr-12">
         <PortfolioKittySvg stroke={darkMode ? "#ff8a8a" : "#c52222"} fill="transparent" fillOpacity={0} strokeWidth={2.5} className="h-11 w-11 shrink-0" />
         <h1 className="font-serif text-[18px] font-medium leading-none tracking-tight">ekitty purrrtfolio</h1>
       </div>
