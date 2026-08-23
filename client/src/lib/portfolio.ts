@@ -9,6 +9,9 @@ export type PortfolioLot = {
   buy_qty: number;
   avg_price: number;
   current_price: number;
+  prev_close_price?: number;
+  dayChange?: number;
+  dayChangePercent?: number;
   buy_date?: string;
   isETF?: boolean;
 };
@@ -23,6 +26,9 @@ export type PortfolioPoint = {
   currentValue: number;
   pnl: number;
   pnlPercent: number;
+  previousCloseValue?: number;
+  dayChange?: number;
+  dayChangePercent?: number;
   lots: PortfolioLot[];
   oldestDate?: string;
   ageDays?: number;
@@ -30,10 +36,23 @@ export type PortfolioPoint = {
   isETF: boolean;
 };
 
+export type KittyScaleMetric = "invested" | "current" | "quantity" | "pnlMagnitude";
+
+export type PortfolioStats = {
+  totalInvestedValue: number;
+  totalCurrentValue: number;
+  totalUnrealizedPnl: number;
+  totalUnrealizedPnlPercent: number;
+  lotDeltas: PortfolioPoint[];
+  companyDeltas: PortfolioPoint[];
+};
+
 const CLEAN_NUMBER = /[^0-9.-]/g;
 
 function parseCellNumber(value: string | undefined) {
-  const number = Number((value ?? "").replace(CLEAN_NUMBER, ""));
+  const cleaned = (value ?? "").replace(CLEAN_NUMBER, "");
+  if (!cleaned) return NaN;
+  const number = Number(cleaned);
   return Number.isFinite(number) ? number : NaN;
 }
 
@@ -62,6 +81,16 @@ function parseCsvLine(line: string) {
   return cells;
 }
 
+function stableLotId(row: string[], index: number) {
+  const input = `${index}\u0000${row.join("\u0000")}`;
+  let result = 2166136261;
+  for (let cursor = 0; cursor < input.length; cursor += 1) {
+    result ^= input.charCodeAt(cursor);
+    result = Math.imul(result, 16777619);
+  }
+  return `upload-${(result >>> 0).toString(36)}-${index}`;
+}
+
 function normaliseHeader(value: string) {
   return value.toLowerCase().trim().replace(/[\s-]+/g, "_");
 }
@@ -78,6 +107,12 @@ function normaliseDateValue(value?: string) {
     const [, day, month, year] = dayFirst;
     const date = new Date(Number(year), Number(month) - 1, Number(day));
     return date.getFullYear() === Number(year) && date.getMonth() === Number(month) - 1 && date.getDate() === Number(day) ? `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}` : undefined;
+  }
+  const isoDate = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoDate) {
+    const [, year, month, day] = isoDate;
+    const date = new Date(Number(year), Number(month) - 1, Number(day));
+    return date.getFullYear() === Number(year) && date.getMonth() === Number(month) - 1 && date.getDate() === Number(day) ? raw : undefined;
   }
   const parsed = new Date(raw);
   return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString().slice(0, 10);
@@ -96,6 +131,7 @@ export function parsePortfolioCsv(text: string): { records: PortfolioLot[]; erro
   const quantityColumn = findColumn(headers, ["buy_qty", "qty", "quantity", "shares"]);
   const averageColumn = findColumn(headers, ["avg_price", "buy_price", "average_price", "cost_price"]);
   const currentColumn = findColumn(headers, ["current_price", "market_price", "ltp", "price"]);
+  const previousCloseColumn = findColumn(headers, ["prev_close_price", "previous_close_price", "prev_close", "previous_close", "close_price"]);
   const dateColumn = findColumn(headers, ["buy_date", "txn_date", "transaction_date", "date", "purchase_date"]);
   const instrumentColumn = findColumn(headers, ["asset_type", "asset_class", "instrument_type", "security_type", "type"]);
 
@@ -112,11 +148,25 @@ export function parsePortfolioCsv(text: string): { records: PortfolioLot[]; erro
     const quantity = parseCellNumber(row[quantityColumn]);
     const average = parseCellNumber(row[averageColumn]);
     const current = parseCellNumber(row[currentColumn]);
+    const previousClose = previousCloseColumn >= 0 ? parseCellNumber(row[previousCloseColumn]) : NaN;
     const validDate = normaliseDateValue(dateColumn >= 0 ? row[dateColumn] : undefined);
     const instrument = instrumentColumn >= 0 ? row[instrumentColumn] : undefined;
 
     if (!company || !Number.isFinite(quantity) || !Number.isFinite(average) || !Number.isFinite(current)) return [];
-    return [{ id: `upload-${Date.now()}-${index}`, company, buy_qty: quantity, avg_price: average, current_price: current, buy_date: validDate, isETF: inferEtf(company, instrument) }];
+    const hasPreviousClose = Number.isFinite(previousClose) && previousClose > 0;
+    const dayChange = hasPreviousClose ? current - previousClose : undefined;
+    return [{
+      id: stableLotId(row, index),
+      company,
+      buy_qty: quantity,
+      avg_price: average,
+      current_price: current,
+      prev_close_price: hasPreviousClose ? previousClose : undefined,
+      dayChange,
+      dayChangePercent: dayChange === undefined ? undefined : (dayChange / previousClose) * 100,
+      buy_date: validDate,
+      isETF: inferEtf(company, instrument),
+    }];
   });
 
   return records.length ? { records } : { records: [], error: "No usable rows were found in this file." };
@@ -134,6 +184,11 @@ function pointFromLots(id: string, company: string, lots: PortfolioLot[]): Portf
   const investedValue = lots.reduce((sum, lot) => sum + lot.buy_qty * lot.avg_price, 0);
   const currentValue = lots.reduce((sum, lot) => sum + lot.buy_qty * lot.current_price, 0);
   const pnl = currentValue - investedValue;
+  const hasCompletePreviousClose = lots.length > 0 && lots.every((lot) => lot.prev_close_price !== undefined && lot.prev_close_price > 0);
+  const previousCloseValue = hasCompletePreviousClose
+    ? lots.reduce((sum, lot) => sum + lot.buy_qty * lot.prev_close_price!, 0)
+    : undefined;
+  const dayChange = previousCloseValue === undefined ? undefined : currentValue - previousCloseValue;
   const datedLots = lots.filter((lot) => lot.buy_date).sort((a, b) => new Date(a.buy_date!).getTime() - new Date(b.buy_date!).getTime());
   const oldestDate = datedLots[0]?.buy_date;
   const ageDays = ageInDays(oldestDate);
@@ -150,6 +205,9 @@ function pointFromLots(id: string, company: string, lots: PortfolioLot[]): Portf
     currentValue,
     pnl,
     pnlPercent: investedValue ? (pnl / investedValue) * 100 : 0,
+    previousCloseValue,
+    dayChange,
+    dayChangePercent: dayChange === undefined || !previousCloseValue ? undefined : (dayChange / previousCloseValue) * 100,
     lots,
     oldestDate,
     ageDays,
@@ -168,6 +226,29 @@ export function asHoldingPoints(lots: PortfolioLot[]) {
   return Array.from(grouped.entries()).map(([company, companyLots]) => pointFromLots(`holding-${company}`, company, companyLots));
 }
 
+export function computePortfolioStats(lots: PortfolioLot[]): PortfolioStats {
+  const lotDeltas = asTransactionPoints(lots);
+  const companyDeltas = asHoldingPoints(lots);
+  const totalInvestedValue = lotDeltas.reduce((sum, point) => sum + point.investedValue, 0);
+  const totalCurrentValue = lotDeltas.reduce((sum, point) => sum + point.currentValue, 0);
+  const totalUnrealizedPnl = totalCurrentValue - totalInvestedValue;
+  return {
+    totalInvestedValue,
+    totalCurrentValue,
+    totalUnrealizedPnl,
+    totalUnrealizedPnlPercent: totalInvestedValue ? (totalUnrealizedPnl / totalInvestedValue) * 100 : 0,
+    lotDeltas,
+    companyDeltas,
+  };
+}
+
+export function pointScaleValue(point: PortfolioPoint, metric: KittyScaleMetric) {
+  if (metric === "current") return Math.max(0, point.currentValue);
+  if (metric === "quantity") return Math.max(0, point.qty);
+  if (metric === "pnlMagnitude") return Math.abs(point.pnl);
+  return Math.max(0, point.investedValue);
+}
+
 export function formatCurrency(value: number, compact = false) {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -180,5 +261,3 @@ export function formatCurrency(value: number, compact = false) {
 export function formatPrice(value: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(value);
 }
-
-
