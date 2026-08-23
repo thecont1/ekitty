@@ -4,9 +4,10 @@
  */
 
 import PortfolioKittySvg from "@/components/PortfolioKittySvg";
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { ChevronDown, FileUp, Pause, Play } from "lucide-react";
+import { useRef } from "react";
 import litterBoxIcon from "@/assets/cat-litter-box.svg";
 import flagIcon from "@/assets/checkered-flag.svg";
 import type { KittyScaleMetric } from "@/lib/portfolio";
@@ -48,12 +49,19 @@ export default function PortfolioDrawer({
   etfLotCount, frozen, setFrozen, repulsion, setRepulsion, onImportFile,
   uploadNotice, hasDates, onRestore, visibleKittyCount, loadedLotCount,
 }: PortfolioDrawerProps) {
+  const litterboxRef = useRef<HTMLButtonElement>(null);
+
+  const setOpen = (nextOpen: boolean) => {
+    onOpenChange(nextOpen);
+    if (!nextOpen) requestAnimationFrame(() => litterboxRef.current?.focus());
+  };
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetTrigger asChild>
-        <button type="button" aria-label="Open portfolio controls" className="fixed right-5 top-5 z-[70] grid min-h-11 min-w-11 place-items-center rounded-full transition duration-200 hover:-translate-y-0.5 active:scale-95"><img src={litterBoxIcon} alt="" className={darkMode ? "h-11 w-11 invert" : "h-11 w-11"} /></button>
-      </SheetTrigger>
-      <SheetContent side="right" aria-describedby={undefined} className={darkMode ? "w-[min(468px,94vw)] gap-0 overflow-hidden border-l border-[#25383d] bg-[#101617] p-0 pt-[9rem] shadow-none sm:max-w-none [&>button]:right-6 [&>button]:top-[9.5rem]" : "w-[min(468px,94vw)] gap-0 overflow-hidden border-l border-stone-200 bg-[#faf9f5] p-0 pt-[9rem] shadow-none sm:max-w-none [&>button]:right-6 [&>button]:top-[9.5rem]"}>
+    <Sheet modal={false} open={open} onOpenChange={setOpen}>
+      <button ref={litterboxRef} type="button" aria-label={open ? "Close portfolio controls" : "Open portfolio controls"} aria-expanded={open} aria-controls="portfolio-controls-pane" onClick={() => setOpen(!open)} className="fixed right-5 top-5 z-[70] grid min-h-11 min-w-11 place-items-center rounded-full transition duration-200 hover:-translate-y-0.5 active:scale-95"><img src={litterBoxIcon} alt="" className={darkMode ? "h-11 w-11 invert" : "h-11 w-11"} /></button>
+      <SheetContent id="portfolio-controls-pane" side="right" aria-describedby={undefined} onPointerDownOutside={(event) => {
+        if ((event.target as Element | null)?.closest?.('[aria-controls="portfolio-controls-pane"]')) event.preventDefault();
+      }} className={darkMode ? "w-[min(468px,94vw)] gap-0 overflow-hidden border-l border-[#25383d] bg-[#101617] p-0 pt-[9rem] shadow-none sm:max-w-none [&>button]:right-6 [&>button]:top-[9.5rem]" : "w-[min(468px,94vw)] gap-0 overflow-hidden border-l border-stone-200 bg-[#faf9f5] p-0 pt-[9rem] shadow-none sm:max-w-none [&>button]:right-6 [&>button]:top-[9.5rem]"}>
         <SheetTitle className="sr-only">Portfolio controls</SheetTitle>
         <div className="space-y-7 overflow-y-auto px-6 pb-10 pt-6">
           <section><p className="control-label">Holdings</p><div className="mt-3 grid grid-cols-2 rounded-xl border border-stone-200 bg-white p-1">{([ ["holdings", "Group"], ["transactions", "Transactions"] ] as const).map(([mode, label]) => <button key={mode} type="button" onClick={() => setViewMode(mode)} className={viewMode === mode ? "min-h-11 rounded-lg bg-stone-900 px-2 py-2.5 font-mono text-[10px] text-white shadow-sm" : "min-h-11 rounded-lg px-2 py-2.5 font-mono text-[10px] text-stone-600 transition hover:text-stone-900"}>{label}</button>)}</div><div className="mt-3 flex items-center justify-between font-mono text-[10px]"><span className="text-stone-500">{visibleKittyCount} kitties · {loadedLotCount} total lots</span></div>{viewMode === "transactions" && <p className="mt-2 font-mono text-[9px] leading-4 text-stone-500">← older · drag the field · newer →</p>}</section>
