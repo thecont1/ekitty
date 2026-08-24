@@ -81,6 +81,7 @@ export type OverlayState = { drawerOpen: boolean; legendOpen: boolean; selectedI
 type OverlayClosers = { closeDrawer: () => void; closeLegend: () => void; closeSelected: () => void; markLegendSeen: () => void };
 type PreventableEvent = { preventDefault: () => void };
 type ReadonlyStorage = { getItem: (key: string) => string | null };
+type WritableStorage = { setItem: (key: string, value: string) => void };
 
 export function closeTopOverlay(state: OverlayState, closers: OverlayClosers, event: PreventableEvent) {
   if (state.drawerOpen) {
@@ -105,6 +106,18 @@ export function readShowHalos(storage: ReadonlyStorage) {
     return storage.getItem(HALOS_STORAGE_KEY) === "true";
   } catch {
     return false;
+  }
+}
+
+// Symmetric with readShowHalos: both own HALOS_STORAGE_KEY and its "true"/"false"
+// serialization in one place, so the write path can never drift from the read
+// path. Storage-blocked (private mode, quota) is swallowed — the toggle still
+// works for the session, it just won't persist.
+export function writeShowHalos(storage: WritableStorage, value: boolean) {
+  try {
+    storage.setItem(HALOS_STORAGE_KEY, String(value));
+  } catch {
+    /* storage blocked */
   }
 }
 
@@ -170,6 +183,9 @@ export function CatGlyph({ point, size, stroke, pigment, emphasis, bobDuration, 
     <button type="button" tabIndex={searchHidden ? -1 : 0} aria-label={`${point.company}: ${point.pnl >= 0 ? "profit" : "loss"} ${formatCurrency(Math.abs(point.pnl))}, ${Math.abs(point.pnlPercent).toFixed(1)} percent; active ${visualLens.replaceAll("-", " ")} lens${moverLabel}${point.isETF ? ", ETF" : ""}${point.taxSensitive ? ", tax-loss eligible" : ""}`} className="group absolute z-10 block origin-center border-0 bg-transparent p-0 outline-none focus-visible:z-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D8AE37]" style={{ width: size, height: size, transform: "translate(-50%, -50%)", cursor: MOUSE_CURSOR }} onPointerDown={(event) => event.stopPropagation()} onMouseEnter={onHover} onFocus={onHover} onMouseLeave={onLeave} onBlur={onLeave} onClick={onClick}>
       <span className="relative block h-full w-full transition-transform duration-200 ease-out group-hover:scale-[1.055] group-focus-visible:scale-[1.055]" style={{ transform: `rotate(${lean}deg) skewX(${skew}deg) scale(${widthScale}, ${heightScale})` }}>
         <span className="relative block h-full w-full" style={bobStyle}>
+          {/* data-ring="…" attributes are stable test hooks (see kittyField.test.ts):
+              emphasis = toggleable halo, focus = selection, search = query match,
+              mover = daily-move ring. Don't strip them in an "unused attribute" pass. */}
           {showHalos && emphasis.haloOpacity > 0 && <span aria-hidden="true" data-ring="emphasis" className="absolute inset-[3%] rounded-full border-current" style={{ borderStyle: point.pnl < 0 ? "dashed" : "solid", borderWidth: emphasis.haloWidth, opacity: emphasis.haloOpacity, color: pigment.ink }} />}
           {focused && <span aria-hidden="true" data-ring="focus" className="absolute inset-[5%] rounded-full border-[1.5px] border-[#D8AE37]" style={{ borderStyle: "solid" }} />}
           {searchMatch && searchTerm && <span aria-hidden="true" data-ring="search" className="absolute inset-[2%] rounded-full border-2 border-[#D8AE37] opacity-90" style={{ borderStyle: "dotted" }} />}
@@ -574,7 +590,7 @@ export default function Home() {
   }, [showPnlBadges]);
 
   useEffect(() => {
-    try { window.localStorage.setItem(HALOS_STORAGE_KEY, String(showHalos)); } catch { /* storage blocked */ }
+    writeShowHalos(window.localStorage, showHalos);
   }, [showHalos]);
 
   useEffect(() => {

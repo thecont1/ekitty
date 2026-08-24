@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { CatGlyph, clampCardLeft, closeTopOverlay, readShowHalos } from "../pages/Home";
+import { CatGlyph, clampCardLeft, closeTopOverlay, readShowHalos, writeShowHalos } from "../pages/Home";
 import PortfolioKittySvg from "../components/PortfolioKittySvg";
 import {
   KITTY_HITBOX_WIDTH_RATIO,
@@ -21,14 +21,17 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-describe("kitty hitbox (tail removal)", () => {
-  it("renders both front-paw curves inside the existing SVG", () => {
+describe("restored kitty linework", () => {
+  it("renders the supplied back leg, paw detail, and front paw paths exactly", () => {
     const markup = renderToStaticMarkup(createElement(PortfolioKittySvg, { stroke: "#000", fill: "transparent", fillOpacity: 0, strokeWidth: 2 }));
-    expect(markup).toContain("M76,168.4c0.4,2.8");
-    expect(markup).toContain("M112,168.4c-0.4,2.8");
+    expect(markup).toContain("M116.52,152.28c-8,3.24-10.96,15.72,3.24,15.72s19.68-16,19.68-27a116.28,116.28,0,0,0-4.96-27,17,17,0,0,0,4.96-7.36c.68-3.6,4.44-40,4.76-41.56a17.08,17.08,0,0,0,1.88-5.96,10.6,10.6,0,0,0-13.96-8");
+    expect(markup).toContain("M100.92,161.76a76,76,0,0,1,9-1.08");
+    expect(markup).toContain("M80,166.28a26.72,26.72,0,0,1-11.28,1.72c-4.28,0-14-7.08-.6-15.64");
+    expect(markup).not.toContain("M76,168.4c0.4,2.8");
+    expect(markup).not.toContain("M112,168.4c-0.4,2.8");
   });
 
-  it("sizes the collision radius to the de-tailed silhouette, not the stale box", () => {
+  it("sizes the collision radius to the restored silhouette, not the full SVG box", () => {
     // A 200px kitty: ears+body span ~73% of the old tail-inclusive width.
     expect(kittyCollisionRadius(200)).toBeCloseTo((200 * KITTY_HITBOX_WIDTH_RATIO) / 2, 5);
     expect(kittyCollisionRadius(200)).toBeLessThan(100); // smaller than half the rendered box
@@ -218,6 +221,25 @@ describe("overlay and layout helpers", () => {
     expect(readShowHalos({ getItem: () => { throw new Error("blocked"); } })).toBe(false);
   });
 
+  it("persists the halo preference and reads its own write back", () => {
+    const store = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => (store.has(key) ? (store.get(key) as string) : null),
+      setItem: (key: string, value: string) => { store.set(key, value); },
+    };
+    // Round-trip: whatever writeShowHalos serializes, readShowHalos must decode.
+    // This guards the two helpers against key/format drift — the class of bug
+    // where a write path forgets to mirror the read path.
+    writeShowHalos(storage, true);
+    expect(readShowHalos(storage)).toBe(true);
+    writeShowHalos(storage, false);
+    expect(readShowHalos(storage)).toBe(false);
+  });
+
+  it("swallows a blocked storage write instead of throwing", () => {
+    expect(() => writeShowHalos({ setItem: () => { throw new Error("blocked"); } }, true)).not.toThrow();
+  });
+
   it("renders halos only when enabled and search as a distinct dotted ring", () => {
     const point = asHoldingPoints(parsePortfolioCsv([
       "company,buy_qty,avg_price,current_price,txn_date",
@@ -253,6 +275,10 @@ describe("overlay and layout helpers", () => {
     const halosOn = renderToStaticMarkup(createElement(CatGlyph, { ...baseProps, showHalos: true }));
     expect(halosOn).toContain('data-ring="emphasis"');
     expect(halosOn).toContain('border-style:dashed');
+
+    const focusedSearch = renderToStaticMarkup(createElement(CatGlyph, { ...baseProps, focused: true, searchTerm: "tcs", searchMatch: true, showHalos: false }));
+    expect(focusedSearch).toContain('data-ring="focus"');
+    expect(focusedSearch).toContain('data-ring="search"');
 
     const noSearch = renderToStaticMarkup(createElement(CatGlyph, { ...baseProps, showHalos: false, searchTerm: "", searchMatch: true }));
     expect(noSearch).not.toContain('data-ring="search"');
