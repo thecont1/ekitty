@@ -30,8 +30,8 @@ import { dirname, join } from "node:path";
 // Mirrors of Home.tsx runtime constants:
 const TOP_KITTY_MARGIN = 54;
 const DEFAULT_REPULSION = 0.62;
-const LAYOUT_HEIGHT = 1504; // world height on a 1440×~813 Group viewport
-const PHYSICS_WIDTH = 2016; // max(1500, 1440*1.4)
+const LAYOUT_HEIGHT = 1998; // mirrors Home.tsx virtualCanvasHeight for Group view
+const PHYSICS_WIDTH = 2016; // unchanged — horizontal canvas already large
 
 type Sim = { x: number; y: number; vx: number; vy: number };
 
@@ -54,16 +54,17 @@ describe("steady-state field (real portfolio.csv, gravity on)", () => {
   const CAMERA_X = -576;
   const headerZone: ExclusionZone = { left: 1140 - CAMERA_X, top: 12, right: 1428 - CAMERA_X, bottom: 100 };
   const iconsZone: ExclusionZone = { left: 1372 - CAMERA_X, top: 12, right: 1428 - CAMERA_X, bottom: 780 };
+  const drawerOpenIconsZone: ExclusionZone = { left: 960 - CAMERA_X, top: 12, right: 1428 - CAMERA_X, bottom: 780 };
 
-  function simulate(ticks: number) {
-    const sims: Sim[] = ids.map((id, index) => {
+  function simulate(ticks: number, activeIconsZone = iconsZone, initial?: Sim[]) {
+    const sims: Sim[] = initial ? initial.map((node) => ({ ...node })) : ids.map((id, index) => {
       const seed = hash(id);
       const padding = 48;
       return {
         x: padding + (seed % Math.max(120, PHYSICS_WIDTH - padding * 2)),
         y: padding + ((seed >>> 8) % Math.max(120, 813 - padding * 2)),
-        vx: ((index % 3) - 1) * 0.18,
-        vy: (((index + 1) % 3) - 1) * 0.18,
+        vx: ((index % 3) - 1) * 0.04,
+        vy: (((index + 1) % 3) - 1) * 0.04,
       };
     });
     const radii = sizes.map((size) => kittyCollisionRadius(size));
@@ -80,7 +81,7 @@ describe("steady-state field (real portfolio.csv, gravity on)", () => {
         const jitter = ((seed >>> 13) % 140) / 1000;
         const anchorY = headerFloor + radii[index] * 0.6 + Math.max(0, bandNorms[index] - 0.14) * usableHeight;
         const anchorX = PHYSICS_WIDTH * (0.08 + ((seed % 840) / 1000));
-        const [ax, ay] = anchorOutsideZones(anchorX, anchorY, radii[index], [headerZone, iconsZone]);
+        const [ax, ay] = anchorOutsideZones(anchorX, anchorY, radii[index], [headerZone, activeIconsZone]);
         node.vx += (ax - node.x) * 0.00048 * delta;
         node.vy += (ay - node.y) * (0.00048 + 0.0012) * delta;
       });
@@ -92,14 +93,14 @@ describe("steady-state field (real portfolio.csv, gravity on)", () => {
         node.vy += (node.y < topBoundary ? topBoundary - node.y : node.y > LAYOUT_HEIGHT - margin ? LAYOUT_HEIGHT - margin - node.y : 0) * 0.008;
         const [zx, zy] = zoneRepulsion(node.x, node.y, radii[index], headerZone);
         node.vx += zx; node.vy += zy;
-        const [ix, iy] = zoneRepulsion(node.x, node.y, radii[index], iconsZone);
+        const [ix, iy] = zoneRepulsion(node.x, node.y, radii[index], activeIconsZone);
         node.vx += ix; node.vy += iy;
         node.vx *= 0.91; node.vy *= 0.91;
         node.x += node.vx * delta;
         node.y += node.vy * delta;
         // Project BEFORE separation so the pairwise solver has the final say
         // and can spread cats along the zone boundary instead of stacking.
-        const [px, py] = projectOutsideZones(node.x, node.y, radii[index], [headerZone, iconsZone]);
+        const [px, py] = projectOutsideZones(node.x, node.y, radii[index], [headerZone, activeIconsZone]);
         node.x = px;
         node.y = py;
       });
@@ -107,13 +108,41 @@ describe("steady-state field (real portfolio.csv, gravity on)", () => {
       // Final projection: separation may shove a cat back into a zone; the
       // no-go guarantee wins over the last bit of pairwise slack.
       sims.forEach((node, index) => {
-        const [px, py] = projectOutsideZones(node.x, node.y, radii[index], [headerZone, iconsZone]);
+        const [px, py] = projectOutsideZones(node.x, node.y, radii[index], [headerZone, activeIconsZone]);
         node.x = px;
         node.y = py;
       });
     }
     return sims;
   }
+
+  function zoneViolations(sims: Sim[], zone: ExclusionZone) {
+    return sims.flatMap((node, index) => {
+      const radius = kittyCollisionRadius(sizes[index]);
+      const cx = Math.max(zone.left, Math.min(node.x, zone.right));
+      const cy = Math.max(zone.top, Math.min(node.y, zone.bottom));
+      const distance = Math.hypot(node.x - cx, node.y - cy);
+      return distance < radius - 2 ? [`${ids[index]}: dist=${distance.toFixed(1)} < r=${radius.toFixed(1)}`] : [];
+    });
+  }
+
+  it("settles clear of the wider drawer-open no-go zone", () => {
+    expect(zoneViolations(simulate(4000, drawerOpenIconsZone), drawerOpenIconsZone)).toEqual([]);
+  });
+
+  it("closing the drawer lets cats reclaim the released strip", () => {
+    const open = simulate(4000, drawerOpenIconsZone);
+    const releasedLeft = drawerOpenIconsZone.left;
+    const releasedRight = iconsZone.left;
+    const meanDistanceToReleasedStrip = (sims: Sim[]) => sims.reduce((sum, node) => {
+      if (node.x < releasedLeft) return sum + (releasedLeft - node.x);
+      if (node.x > releasedRight) return sum + (node.x - releasedRight);
+      return sum;
+    }, 0) / sims.length;
+
+    const closedAgain = simulate(100, iconsZone, open);
+    expect(meanDistanceToReleasedStrip(closedAgain)).toBeLessThan(meanDistanceToReleasedStrip(open));
+  });
 
   it("settles with zero inked-silhouette intrusion into either no-go zone", () => {
     const sims = simulate(4000);
@@ -178,15 +207,15 @@ describe("steady-state field (real portfolio.csv, gravity on)", () => {
     expect(Number.isFinite(worstAtMax)).toBe(true);
   });
 
-  it("diagnostic: band distribution", () => {
+  it("keeps gravity bands distributed across the full layout", () => {
     const sims = simulate(4000);
-    const rows = ids.map((id, index) => ({ id, norm: +bandNorms[index].toFixed(2), y: Math.round(sims[index].y) }));
-    rows.sort((a, b) => a.norm - b.norm);
-    console.log(rows.map((r) => `${r.norm}@${r.y}`).join(" "));
+    const ys = sims.map((node) => node.y);
+    expect(Math.min(...ys)).toBeLessThan(LAYOUT_HEIGHT * 0.2);
+    expect(Math.max(...ys)).toBeGreaterThan(LAYOUT_HEIGHT * 0.8);
   });
 
-  it("diagnostic: pair shortfall distribution", () => {
-    for (const ticks of [2000, 4000, 8000]) {
+  it("pair shortfall remains stable as the simulation converges", () => {
+    const results = [2000, 4000, 8000].map((ticks) => {
       const sims = simulate(ticks);
       const radii = sizes.map((size) => kittyCollisionRadius(size));
       const shortfalls: number[] = [];
@@ -197,9 +226,10 @@ describe("steady-state field (real portfolio.csv, gravity on)", () => {
           if (shortfall > 0.5) shortfalls.push(shortfall);
         }
       }
-      shortfalls.sort((x, y) => y - x);
-      console.log(`ticks=${ticks} violatingPairs=${shortfalls.length} worst=${Math.round(shortfalls[0] ?? 0)} median=${Math.round(shortfalls[Math.floor(shortfalls.length / 2)] ?? 0)}`);
-    }
+      return Math.max(0, ...shortfalls);
+    });
+    expect(results.every(Number.isFinite)).toBe(true);
+    expect(results[2]).toBeLessThanOrEqual(results[0] + 1);
   });
 
   it("gravity keeps big holdings strictly lower than small ones (soft, not rigid)", () => {

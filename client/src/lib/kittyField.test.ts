@@ -1,4 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { CatGlyph, clampCardLeft, closeTopOverlay, readShowHalos } from "../pages/Home";
+import PortfolioKittySvg from "../components/PortfolioKittySvg";
 import {
   KITTY_HITBOX_WIDTH_RATIO,
   SEPARATION_FLOOR_PX,
@@ -18,6 +22,12 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 describe("kitty hitbox (tail removal)", () => {
+  it("renders both front-paw curves inside the existing SVG", () => {
+    const markup = renderToStaticMarkup(createElement(PortfolioKittySvg, { stroke: "#000", fill: "transparent", fillOpacity: 0, strokeWidth: 2 }));
+    expect(markup).toContain("M76,168.4c0.4,2.8");
+    expect(markup).toContain("M112,168.4c-0.4,2.8");
+  });
+
   it("sizes the collision radius to the de-tailed silhouette, not the stale box", () => {
     // A 200px kitty: ears+body span ~73% of the old tail-inclusive width.
     expect(kittyCollisionRadius(200)).toBeCloseTo((200 * KITTY_HITBOX_WIDTH_RATIO) / 2, 5);
@@ -144,7 +154,7 @@ describe("zoneRepulsion (no-go zones)", () => {
 describe("badge / coin anchor geometry (all four permutations)", () => {
   // Mirrors CatGlyph's percentage anchors so regressions in the glyph fail here.
   const BADGE = { right: "16%", bottom: "14%", size: "12%" };
-  const COIN = { left: "22%", top: "24%", size: "10%" };
+  const COIN = { left: "44%", top: "54%", size: "10%" };
 
   function rectsFor(sizePx: number) {
     const pct = (value: string) => parseFloat(value) / 100 * sizePx;
@@ -166,6 +176,7 @@ describe("badge / coin anchor geometry (all four permutations)", () => {
     expect(badge.top).toBeGreaterThanOrEqual(-13);
     expect(coin.left + coin.size).toBeLessThanOrEqual(sizePx + 13);
     expect(coin.top + coin.size).toBeLessThanOrEqual(sizePx + 13);
+    expect(coin.top + coin.size / 2).toBeGreaterThan(sizePx * 0.5);
   });
 
   it("anchors never depend on each other's presence (fixed slots)", () => {
@@ -174,6 +185,92 @@ describe("badge / coin anchor geometry (all four permutations)", () => {
     const { badge, coin } = rectsFor(200);
     expect(badge.left).not.toBe(coin.left);
     expect(badge.top).not.toBe(coin.top);
+  });
+});
+
+describe("overlay and layout helpers", () => {
+  it.each([
+    [{ drawerOpen: true, legendOpen: true, selectedId: "cat" }, "drawer"],
+    [{ drawerOpen: false, legendOpen: true, selectedId: "cat" }, "legend"],
+    [{ drawerOpen: false, legendOpen: false, selectedId: "cat" }, "selected"],
+    [{ drawerOpen: false, legendOpen: false, selectedId: null }, null],
+  ] as const)("Escape closes only the top overlay for %j", (state, expected) => {
+    const closeDrawer = vi.fn();
+    const closeLegend = vi.fn();
+    const closeSelected = vi.fn();
+    const markLegendSeen = vi.fn();
+    const event = { preventDefault: vi.fn() };
+
+    closeTopOverlay(state, { closeDrawer, closeLegend, closeSelected, markLegendSeen }, event);
+
+    expect(closeDrawer).toHaveBeenCalledTimes(expected === "drawer" ? 1 : 0);
+    expect(closeLegend).toHaveBeenCalledTimes(expected === "legend" ? 1 : 0);
+    expect(closeSelected).toHaveBeenCalledTimes(expected === "selected" ? 1 : 0);
+    expect(markLegendSeen).toHaveBeenCalledTimes(expected === "legend" ? 1 : 0);
+    expect(event.preventDefault).toHaveBeenCalledTimes(expected === null ? 0 : 1);
+  });
+
+  it("reads the halo preference with an off-by-default fallback", () => {
+    const storage = (value: string | null) => ({ getItem: () => value });
+    expect(readShowHalos(storage(null))).toBe(false);
+    expect(readShowHalos(storage("true"))).toBe(true);
+    expect(readShowHalos(storage("false"))).toBe(false);
+    expect(readShowHalos({ getItem: () => { throw new Error("blocked"); } })).toBe(false);
+  });
+
+  it("renders halos only when enabled and search as a distinct dotted ring", () => {
+    const point = asHoldingPoints(parsePortfolioCsv([
+      "company,buy_qty,avg_price,current_price,txn_date",
+      "Tata Consultancy Services,10,100,90,2025-01-01",
+    ].join("\n")).records)[0];
+    const baseProps = {
+      point,
+      size: 120,
+      stroke: 2,
+      pigment: { fill: "#fff", ink: "#ff3b3b", fillOpacity: 0.4, direction: "loss" as const },
+      emphasis: { haloWidth: 3, haloOpacity: 0.4, symbol: "−" as const },
+      bobDuration: 3,
+      visualLens: "portfolio-impact" as const,
+      focused: true,
+      frozen: true,
+      searchHidden: false,
+      searchTerm: "tcs",
+      searchMatch: true,
+      showBadges: false,
+      darkMode: false,
+      onHover: () => undefined,
+      onLeave: () => undefined,
+      onClick: () => undefined,
+    };
+
+    const halosOff = renderToStaticMarkup(createElement(CatGlyph, { ...baseProps, showHalos: false }));
+    expect(halosOff).not.toContain('data-ring="emphasis"');
+    expect(halosOff).toContain('data-ring="focus"');
+    expect(halosOff).toContain('border-style:solid');
+    expect(halosOff).toContain('data-ring="search"');
+    expect(halosOff).toContain('border-style:dotted');
+
+    const halosOn = renderToStaticMarkup(createElement(CatGlyph, { ...baseProps, showHalos: true }));
+    expect(halosOn).toContain('data-ring="emphasis"');
+    expect(halosOn).toContain('border-style:dashed');
+
+    const noSearch = renderToStaticMarkup(createElement(CatGlyph, { ...baseProps, showHalos: false, searchTerm: "", searchMatch: true }));
+    expect(noSearch).not.toContain('data-ring="search"');
+
+    const etfMarkup = renderToStaticMarkup(createElement(CatGlyph, { ...baseProps, point: { ...point, isETF: true }, focused: false, showHalos: false, searchTerm: "", searchMatch: true }));
+    expect(etfMarkup).toContain("pointer-events-none");
+    expect(etfMarkup).toContain("left-[60%]");
+    expect(etfMarkup).toContain("top-[76%]");
+    expect(etfMarkup).toContain(">ETF<");
+    expect(etfMarkup).not.toContain("pointer-events-auto");
+  });
+
+  it("keeps the detail card clear of the icon cluster", () => {
+    const maximum = 1920 - 350 - 72;
+    expect(clampCardLeft(1000, 1920, true)).toBeLessThanOrEqual(maximum);
+    expect(clampCardLeft(1500, 1920, true)).toBe(maximum);
+    expect(clampCardLeft(100, 1920, false)).toBeGreaterThanOrEqual(14);
+    expect(clampCardLeft(100, 1920, false)).toBeLessThanOrEqual(maximum);
   });
 });
 

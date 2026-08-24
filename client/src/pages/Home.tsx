@@ -56,6 +56,7 @@ type TimelineDrag = { startX: number; startY: number; startPanX: number; startPa
 const PORTFOLIO_CSV_URL = "/data/portfolio.csv";
 const PORTFOLIO_STORAGE_KEY = "ekitty-portfolio-csv";
 const BADGES_STORAGE_KEY = "ekitty-show-pnl-badges-v1";
+const HALOS_STORAGE_KEY = "ekitty-show-halos-v1";
 const SHOCKING_PINK = "#ff1493";
 const MOUSE_CURSOR = "none";
 /** Gravity toggle ease-in/out window — organic settle, no snapping. */
@@ -75,6 +76,41 @@ const GRAVITY_EASE_MS = 700;
 // TODO(ekitty): enable when portfolio.csv gains prev_close_price data.
 const MOVER_RING_ENABLED = false;
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+export type OverlayState = { drawerOpen: boolean; legendOpen: boolean; selectedId: string | null };
+type OverlayClosers = { closeDrawer: () => void; closeLegend: () => void; closeSelected: () => void; markLegendSeen: () => void };
+type PreventableEvent = { preventDefault: () => void };
+type ReadonlyStorage = { getItem: (key: string) => string | null };
+
+export function closeTopOverlay(state: OverlayState, closers: OverlayClosers, event: PreventableEvent) {
+  if (state.drawerOpen) {
+    closers.closeDrawer();
+    event.preventDefault();
+    return;
+  }
+  if (state.legendOpen) {
+    closers.closeLegend();
+    closers.markLegendSeen();
+    event.preventDefault();
+    return;
+  }
+  if (state.selectedId) {
+    closers.closeSelected();
+    event.preventDefault();
+  }
+}
+
+export function readShowHalos(storage: ReadonlyStorage) {
+  try {
+    return storage.getItem(HALOS_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+export function clampCardLeft(focusX: number, sceneWidth: number, onRight: boolean) {
+  return clamp(onRight ? focusX + 76 : focusX - 412, 14, sceneWidth - 350 - 72);
+}
 
 function hash(value: string) {
   return Array.from(value).reduce((result, character) => ((result << 5) - result + character.charCodeAt(0)) | 0, 0) >>> 0;
@@ -116,7 +152,7 @@ function createTimeline(points: PortfolioPoint[]): Timeline {
   return { months, indexFor, hasDates: dated.length > 0 };
 }
 
-function CatGlyph({ point, size, stroke, pigment, emphasis, bobDuration, visualLens, focused, frozen, searchHidden, showBadges, darkMode, onHover, onLeave, onClick }: VisiblePoint & { visualLens: VisualLens; focused: boolean; frozen: boolean; searchHidden: boolean; showBadges: boolean; darkMode: boolean; onHover: () => void; onLeave: () => void; onClick: () => void }) {
+export function CatGlyph({ point, size, stroke, pigment, emphasis, bobDuration, visualLens, focused, frozen, searchHidden, searchTerm, searchMatch, showBadges, showHalos, darkMode, onHover, onLeave, onClick }: VisiblePoint & { visualLens: VisualLens; focused: boolean; frozen: boolean; searchHidden: boolean; searchTerm: string; searchMatch: boolean; showBadges: boolean; showHalos: boolean; darkMode: boolean; onHover: () => void; onLeave: () => void; onClick: () => void }) {
   const variation = hash(point.id);
   const lean = (variation % 11) - 5;
   // decorative only — not derived from portfolio data
@@ -124,7 +160,7 @@ function CatGlyph({ point, size, stroke, pigment, emphasis, bobDuration, visualL
   const skew = ((variation >>> 11) % 9) - 4;
   // decorative only — not derived from portfolio data
   const heightScale = 0.94 + ((variation >>> 16) % 15) / 100;
-  const bobStyle = frozen ? undefined : { animationName: "kitty-bob", animationDuration: `${bobDuration}s`, animationTimingFunction: "cubic-bezier(.42,0,.3,1)", animationIterationCount: "infinite", animationDirection: "alternate", animationDelay: `-${(hash(point.id) % 1000) / 1000}s` };
+  const bobStyle = frozen ? undefined : { animationName: "kitty-bob", animationDuration: `${bobDuration}s`, animationTimingFunction: "cubic-bezier(.42,0,.3,1)", animationIterationCount: "infinite", animationDirection: "alternate", animationDelay: `-${(hash(point.id) % 3000) / 1000}s` };
   const isMover = MOVER_RING_ENABLED && point.dayChangePercent !== undefined && Math.abs(point.dayChangePercent) >= 2;
   const moverLabel = isMover
     ? `, ${(point.dayChangePercent as number) >= 0 ? "up" : "down"}${point.dayChange !== undefined ? ` ${formatCurrency(Math.abs(point.dayChange))}` : ""} ${Math.abs(point.dayChangePercent as number).toFixed(1)} percent today`
@@ -134,16 +170,16 @@ function CatGlyph({ point, size, stroke, pigment, emphasis, bobDuration, visualL
     <button type="button" tabIndex={searchHidden ? -1 : 0} aria-label={`${point.company}: ${point.pnl >= 0 ? "profit" : "loss"} ${formatCurrency(Math.abs(point.pnl))}, ${Math.abs(point.pnlPercent).toFixed(1)} percent; active ${visualLens.replaceAll("-", " ")} lens${moverLabel}${point.isETF ? ", ETF" : ""}${point.taxSensitive ? ", tax-loss eligible" : ""}`} className="group absolute z-10 block origin-center border-0 bg-transparent p-0 outline-none focus-visible:z-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D8AE37]" style={{ width: size, height: size, transform: "translate(-50%, -50%)", cursor: MOUSE_CURSOR }} onPointerDown={(event) => event.stopPropagation()} onMouseEnter={onHover} onFocus={onHover} onMouseLeave={onLeave} onBlur={onLeave} onClick={onClick}>
       <span className="relative block h-full w-full transition-transform duration-200 ease-out group-hover:scale-[1.055] group-focus-visible:scale-[1.055]" style={{ transform: `rotate(${lean}deg) skewX(${skew}deg) scale(${widthScale}, ${heightScale})` }}>
         <span className="relative block h-full w-full" style={bobStyle}>
-          {emphasis.haloOpacity > 0 && <span aria-hidden="true" className="absolute inset-[3%] rounded-full border-current" style={{ borderStyle: point.pnl < 0 ? "dashed" : "solid", borderWidth: emphasis.haloWidth, opacity: emphasis.haloOpacity, color: pigment.ink }} />}
-          {focused && <span className="absolute inset-[5%] rounded-full border-[1.5px] border-[#D8AE37]" />}
+          {showHalos && emphasis.haloOpacity > 0 && <span aria-hidden="true" data-ring="emphasis" className="absolute inset-[3%] rounded-full border-current" style={{ borderStyle: point.pnl < 0 ? "dashed" : "solid", borderWidth: emphasis.haloWidth, opacity: emphasis.haloOpacity, color: pigment.ink }} />}
+          {focused && <span aria-hidden="true" data-ring="focus" className="absolute inset-[5%] rounded-full border-[1.5px] border-[#D8AE37]" style={{ borderStyle: "solid" }} />}
+          {searchMatch && searchTerm && <span aria-hidden="true" data-ring="search" className="absolute inset-[2%] rounded-full border-2 border-[#D8AE37] opacity-90" style={{ borderStyle: "dotted" }} />}
           <PortfolioKittySvg stroke={pigment.ink} fill={pigment.fill} fillOpacity={pigment.fillOpacity} strokeWidth={stroke} className="block h-full w-full overflow-visible" />
           {showBadges && <span aria-hidden="true" className="absolute bottom-[14%] right-[16%] grid h-[12%] min-h-[13px] w-[12%] min-w-[13px] place-items-center rounded-full border border-current bg-white/90 font-mono text-[9px] font-bold leading-none text-stone-800">{emphasis.symbol}</span>}
-          {/* Gold tax-loss coin owns the top-left anchor of the body; the +/−
-              badge above owns the bottom-right. Neither depends on whether the
-              other renders, so they never compete for one slot or shift. */}
-          {point.taxSensitive && <span aria-hidden="true" className="absolute left-[22%] top-[24%] h-[10%] min-h-[12px] w-[10%] min-w-[12px] rounded-full border-[1.25px] border-black bg-[#D8AE37] shadow-[0_0_0_1px_rgba(255,255,255,.65)]" />}
-          {isMover && <span aria-hidden="true" className="kitty-mover-ring absolute inset-[-4%] rounded-full border-[2.5px]" style={{ borderStyle: "dashed", borderColor: darkMode ? MOVER_RING_COLOR_DARK : MOVER_RING_COLOR_LIGHT }} />}
-          {point.isETF && <span className="absolute left-[54%] top-[60%] rounded-sm border border-[#9AA5AA] bg-white/95 px-[7%] py-[2%] font-mono text-[7px] font-semibold tracking-[.08em] text-stone-700 shadow-[0_1px_3px_rgba(41,37,36,.12)]">ETF</span>}
+          {/* The tax-loss coin occupies a fixed collar slot while the +/−
+              badge owns the bottom-right. Their presence is independent. */}
+          {point.taxSensitive && <span aria-label="Tax-loss eligible (held 330+ days)" className="absolute left-[44%] top-[54%] h-[10%] min-h-[12px] w-[10%] min-w-[12px] rounded-full border-[1.25px] border-black bg-[#D8AE37] shadow-[0_0_0_1px_rgba(255,255,255,.65)]" />}
+          {isMover && <span aria-hidden="true" data-ring="mover" className="kitty-mover-ring absolute inset-[-4%] rounded-full border-[2.5px]" style={{ borderStyle: "dashed", borderColor: darkMode ? MOVER_RING_COLOR_DARK : MOVER_RING_COLOR_LIGHT }} />}
+          {point.isETF && <span aria-hidden="true" className="pointer-events-none absolute left-[60%] top-[76%] rounded-sm border border-[#9AA5AA] bg-white/95 px-[5%] py-[1.5%] font-mono text-[7px] font-semibold tracking-[.08em] text-stone-700 shadow-[0_1px_3px_rgba(41,37,36,.12)]">ETF</span>}
         </span>
       </span>
     </button>
@@ -177,6 +213,7 @@ export default function Home() {
       return false;
     }
   });
+  const [showHalos, setShowHalos] = useState(() => readShowHalos(window.localStorage));
   const [showBadgesToast, setShowBadgesToast] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
@@ -216,6 +253,24 @@ export default function Home() {
   const effectiveFrozen = frozen || reducedMotion;
   const overlayTheme = getPortfolioOverlayTheme(darkMode);
 
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      closeTopOverlay(
+        { drawerOpen, legendOpen, selectedId },
+        {
+          closeDrawer: () => setDrawerOpen(false),
+          closeLegend: () => setLegendOpen(false),
+          closeSelected: () => setSelectedId(null),
+          markLegendSeen: () => writeLegendSeen(window.localStorage),
+        },
+        event,
+      );
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drawerOpen, legendOpen, selectedId]);
+
   const eligibleRecords = useMemo(() => showEtfs ? records : records.filter((record) => !record.isETF), [records, showEtfs]);
   const etfLotCount = useMemo(() => records.filter((record) => record.isETF).length, [records]);
   const portfolioStats = usePortfolioStats(eligibleRecords);
@@ -236,7 +291,7 @@ export default function Home() {
   const virtualCanvasWidth = viewMode === "transactions" ? Math.max(sceneSize.width, timeline.months.length * transactionStripWidth) : Math.max(sceneSize.width * 1.4, 1_500);
   const virtualCanvasHeight = viewMode === "transactions" ? Math.max(1_560, sceneSize.height * 2.25) : Math.max(1_320, sceneSize.height * 1.85);
   const minCanvasPanX = Math.min(0, sceneSize.width - virtualCanvasWidth);
-  const minCanvasPanY = Math.min(0, sceneSize.height - virtualCanvasHeight);
+  const minCanvasPanY = 0;
   const physicsWidth = virtualCanvasWidth;
   const transactionLayoutHeight = virtualCanvasHeight;
   const pnlScaleMargin = sceneSize.width < 640 ? 66 : 84;
@@ -266,30 +321,36 @@ export default function Home() {
     const measure = () => {
       const headerEl = document.getElementById("ekitty-header");
       const iconsEl = document.getElementById("ekitty-icon-cluster");
+      const drawerEl = document.getElementById("portfolio-controls-pane");
       if (!headerEl || !iconsEl) return;
-      const toZone = (el: Element): ExclusionZone => {
-        const rect = el.getBoundingClientRect();
-        return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
-      };
+      const headerRect = headerEl.getBoundingClientRect();
       const iconRect = iconsEl.getBoundingClientRect();
+      let rightStripLeft = iconRect.left;
+      if (drawerOpen && drawerEl) {
+        const drawerRect = drawerEl.getBoundingClientRect();
+        rightStripLeft = Math.min(rightStripLeft, drawerRect.left);
+      }
       measuredZonesRef.current = {
-        header: toZone(headerEl),
-        // The entire icon column is a no-go zone from the very top of the
-        // viewport to the bottom — not just the stack's box — so kitties
-        // bounce off an invisible full-height border instead of drifting
-        // behind the buttons at any scroll/pan position.
-        icons: { left: iconRect.left, top: 0, right: iconRect.right, bottom: window.innerHeight },
+        header: { left: headerRect.left, top: headerRect.top, right: headerRect.right, bottom: headerRect.bottom },
+        icons: { left: rightStripLeft, top: 0, right: iconRect.right, bottom: window.innerHeight },
       };
     };
     measure();
     const observer = new ResizeObserver(measure);
     const headerEl = document.getElementById("ekitty-header");
     const iconsEl = document.getElementById("ekitty-icon-cluster");
+    const drawerEl = document.getElementById("portfolio-controls-pane");
     if (headerEl) observer.observe(headerEl);
     if (iconsEl) observer.observe(iconsEl);
+    if (drawerEl) observer.observe(drawerEl);
     window.addEventListener("resize", measure);
-    return () => observer.disconnect();
-  }, [records.length]);
+    window.addEventListener("scroll", measure, { passive: true });
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure);
+    };
+  }, [records.length, drawerOpen]);
 
   const setCameraTransform = useCallback((x: number, y: number, scale = 1) => {
     camera.current.x = x;
@@ -419,14 +480,14 @@ export default function Home() {
   }, []);
 
   const scrollTimeline = useCallback((event: React.WheelEvent<HTMLElement>) => {
-    if (!event.deltaX && !event.deltaY) return;
+    if (viewMode === "holdings" || (!event.deltaX && !event.deltaY)) return;
     event.preventDefault();
     const nextX = clamp(camera.current.x - event.deltaX, minCanvasPanX, 0);
     const nextY = clamp(camera.current.y - event.deltaY, minCanvasPanY, 0);
     setCameraTransform(nextX, nextY);
     setTimelinePanOffset(nextX);
     setCanvasPanY(nextY);
-  }, [minCanvasPanX, minCanvasPanY, setCameraTransform]);
+  }, [minCanvasPanX, minCanvasPanY, setCameraTransform, viewMode]);
 
   useEffect(() => {
     const updateSize = () => setSceneSize({ width: window.innerWidth, height: window.innerHeight });
@@ -513,12 +574,16 @@ export default function Home() {
   }, [showPnlBadges]);
 
   useEffect(() => {
+    try { window.localStorage.setItem(HALOS_STORAGE_KEY, String(showHalos)); } catch { /* storage blocked */ }
+  }, [showHalos]);
+
+  useEffect(() => {
     const nextNodes: Record<string, SimNode> = {};
     visiblePoints.forEach(({ point }, index) => {
       const current = nodes.current[point.id];
       const seed = hash(point.id);
       const padding = 48;
-      nextNodes[point.id] = current ?? { x: padding + (seed % Math.max(120, physicsWidth - padding * 2)), y: padding + ((seed >>> 8) % Math.max(120, sceneSize.height - padding * 2)), vx: ((index % 3) - 1) * 0.18, vy: (((index + 1) % 3) - 1) * 0.18 };
+      nextNodes[point.id] = current ?? { x: padding + (seed % Math.max(120, physicsWidth - padding * 2)), y: padding + ((seed >>> 8) % Math.max(120, sceneSize.height - padding * 2)), vx: ((index % 3) - 1) * 0.04, vy: (((index + 1) % 3) - 1) * 0.04 };
     });
     nodes.current = nextNodes;
   }, [physicsWidth, sceneSize, visiblePoints]);
@@ -540,8 +605,8 @@ export default function Home() {
         // each frame so enforcement stays correct while panning or fitting.
         const zones = zonesRaw
           ? {
-              header: { left: zonesRaw.header.left - camera.current.x, top: zonesRaw.header.top - camera.current.y, right: zonesRaw.header.right - camera.current.x, bottom: zonesRaw.header.bottom - camera.current.y },
-              icons: { left: zonesRaw.icons.left - camera.current.x, top: zonesRaw.icons.top - camera.current.y, right: zonesRaw.icons.right - camera.current.x, bottom: zonesRaw.icons.bottom - camera.current.y },
+              header: { left: zonesRaw.header.left - camera.current.x, top: zonesRaw.header.top - camera.current.y + window.scrollY, right: zonesRaw.header.right - camera.current.x, bottom: zonesRaw.header.bottom - camera.current.y + window.scrollY },
+              icons: { left: zonesRaw.icons.left - camera.current.x, top: zonesRaw.icons.top - camera.current.y + window.scrollY, right: zonesRaw.icons.right - camera.current.x, bottom: zonesRaw.icons.bottom - camera.current.y + window.scrollY },
             }
           : null;
         if (gravityOn && viewMode === "holdings") {
@@ -687,7 +752,7 @@ export default function Home() {
   }, [moveTimelineDrag]);
 
   return (
-    <main className={darkMode ? "dark relative h-[100dvh] w-screen overflow-hidden bg-[#101617] text-stone-100" : "relative h-[100dvh] w-screen overflow-hidden bg-white text-stone-900"}>
+    <main className={darkMode ? "dark relative min-h-[100dvh] w-screen bg-[#101617] text-stone-100" : "relative min-h-[100dvh] w-screen bg-white text-stone-900"}>
       <PortfolioHeader stats={portfolioStats} hasPortfolio={records.length > 0} darkMode={darkMode} onOpenPortfolio={() => { setViewMode("holdings"); setDrawerOpen(true); }} />
       {/* One cohesive control stack, top-right: litterbox, flag, fit, dark
           mode, help. The help (?) sits at the bottom so its legend panel can
@@ -709,23 +774,23 @@ export default function Home() {
       {viewMode === "transactions" && timelinePanOffset < -1 && <button type="button" title="Drag to see older transactions" aria-label="Earlier months. Drag to see older transactions." onClick={() => panTimelinePage("earlier")} className="fixed left-2 top-1/2 z-40 flex min-h-11 items-center gap-1 rounded-full bg-white/90 px-2 font-mono text-[9px] text-stone-700 opacity-60 shadow-sm transition hover:opacity-100"><ChevronLeft size={20} /> older</button>}
       {viewMode === "transactions" && timelinePanOffset > minCanvasPanX + 1 && <button type="button" title="Drag to see newer transactions" aria-label="Later months. Drag to see newer transactions." onClick={() => panTimelinePage("later")} className="fixed right-[4.5rem] top-1/2 z-40 flex min-h-11 items-center gap-1 rounded-full bg-white/90 px-2 font-mono text-[9px] text-stone-700 opacity-60 shadow-sm transition hover:opacity-100">newer <ChevronRight size={20} /></button>}
       {records.length > 0 && <div className="fixed bottom-11 left-1/2 z-40 -translate-x-1/2"><input aria-label="Find a company" value={companyQuery} onChange={(event) => setCompanyQuery(event.target.value)} onPointerDown={(event) => event.stopPropagation()} className={darkMode ? "h-11 w-[min(348px,calc(100vw-32px))] rounded-full border border-[#49636a] bg-[#142022] px-4 font-mono text-[10px] text-stone-100 shadow-[0_6px_18px_-12px_rgba(0,0,0,.8)] outline-none placeholder:text-stone-400 focus:border-[#D8AE37]" : "h-11 w-[min(348px,calc(100vw-32px))] rounded-full border border-stone-400 bg-white px-4 font-mono text-[10px] text-stone-700 shadow-[0_6px_18px_-12px_rgba(41,37,36,.28)] outline-none placeholder:text-stone-500 focus:border-[#D8AE37]"} placeholder="look what the cat brought in" /></div>}
-      <section ref={kittyWorld} aria-label="Portfolio kitty field" className="absolute left-0 top-0 z-10 touch-none" style={{ width: virtualCanvasWidth, height: virtualCanvasHeight, cursor: MOUSE_CURSOR }} onWheel={scrollTimeline} onPointerDown={(event) => { const nextPosition = { x: event.clientX, y: event.clientY }; setMousePosition({ ...nextPosition, visible: true }); beginTimelineDrag(event); }} onPointerMove={handleFieldPointerMove} onPointerEnter={(event) => { const nextPosition = { x: event.clientX, y: event.clientY }; setMousePosition({ ...nextPosition, visible: true }); }} onPointerLeave={() => { setMousePosition((current) => ({ ...current, visible: false })); }} onPointerUp={endTimelineDrag} onPointerCancel={endTimelineDrag}>
+      <section ref={kittyWorld} aria-label="Portfolio kitty field" className={viewMode === "transactions" ? "relative left-0 top-0 z-10 mx-auto touch-none" : "relative left-0 top-0 z-10 mx-auto touch-pan-y"} style={{ width: virtualCanvasWidth, height: virtualCanvasHeight, cursor: MOUSE_CURSOR }} onWheel={scrollTimeline} onPointerDown={(event) => { const nextPosition = { x: event.clientX, y: event.clientY }; setMousePosition({ ...nextPosition, visible: true }); beginTimelineDrag(event); }} onPointerMove={handleFieldPointerMove} onPointerEnter={(event) => { const nextPosition = { x: event.clientX, y: event.clientY }; setMousePosition({ ...nextPosition, visible: true }); }} onPointerLeave={() => { setMousePosition((current) => ({ ...current, visible: false })); }} onPointerUp={endTimelineDrag} onPointerCancel={endTimelineDrag}>
         {visiblePoints.map((entry) => {
           const node = nodes.current[entry.point.id]; if (!node) return null;
           const searchMatch = !searchTerm || entry.point.company.toLocaleLowerCase().includes(searchTerm);
           const muted = (taxFilter === "highlight" && !entry.point.taxSensitive) || (viewMode === "transactions" && focusedCompany !== null && entry.point.company !== focusedCompany) || !searchMatch;
-          return <div key={entry.point.id} aria-hidden={searchTerm && !searchMatch ? "true" : undefined} className={muted ? "opacity-20 grayscale-[.32] transition-opacity duration-300" : "transition-opacity duration-300"} style={{ position: "absolute", left: node.x, top: node.y }}><CatGlyph {...entry} visualLens={visualLens} searchHidden={Boolean(searchTerm && !searchMatch)} showBadges={showPnlBadges} darkMode={darkMode} focused={viewMode === "transactions" ? focusedCompany === entry.point.company || Boolean(searchTerm && searchMatch) : selectedId === entry.point.id} frozen={effectiveFrozen} onHover={() => setHoveredId(entry.point.id)} onLeave={() => setHoveredId((current) => current === entry.point.id ? null : current)} onClick={() => { if (viewMode === "transactions") { setFocusedCompany((current) => current === entry.point.company ? null : entry.point.company); setSelectedId(null); setHoveredId(null); } else { setSelectedId(entry.point.id); setHoveredId(null); } }} /></div>;
+          return <div key={entry.point.id} aria-hidden={searchTerm && !searchMatch ? "true" : undefined} className={muted ? "opacity-20 grayscale-[.32] transition-opacity duration-300" : "transition-opacity duration-300"} style={{ position: "absolute", left: node.x, top: node.y }}><CatGlyph {...entry} visualLens={visualLens} searchHidden={Boolean(searchTerm && !searchMatch)} searchTerm={searchTerm} searchMatch={searchMatch} showBadges={showPnlBadges} showHalos={showHalos} darkMode={darkMode} focused={viewMode === "transactions" ? focusedCompany === entry.point.company : selectedId === entry.point.id} frozen={effectiveFrozen} onHover={() => setHoveredId(entry.point.id)} onLeave={() => setHoveredId((current) => current === entry.point.id ? null : current)} onClick={() => { if (viewMode === "transactions") { setFocusedCompany((current) => current === entry.point.company ? null : entry.point.company); setSelectedId(null); setHoveredId(null); } else { setSelectedId(entry.point.id); setHoveredId(null); } }} /></div>;
         })}
       </section>
 
       {mousePosition.visible && !prefersReducedMotion && <>
         <div aria-hidden="true" className="pointer-events-none fixed z-[60] -translate-x-1/2 -translate-y-1/2" style={{ left: mousePosition.x, top: mousePosition.y, filter: `drop-shadow(0 0 4px ${SHOCKING_PINK})` }}><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={SHOCKING_PINK} strokeWidth="1.15" strokeLinecap="round" strokeLinejoin="round"><path d="M5.5 3a3.5 3.5 0 0 1 3.25 4.8a7.017 7.017 0 0 0 -2.424 2.1a3.5 3.5 0 1 1 -.826 -6.9z" /><path d="M18.5 3a3.5 3.5 0 1 1 -.826 6.902a7.013 7.013 0 0 0 -2.424 -2.103a3.5 3.5 0 0 1 3.25 -4.799z" /><path d="M12 14m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" /></svg></div>
       </>}
-      <AnimatePresence>{hovered && tooltipNode && !selected && <motion.aside initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.16 }} className={`pointer-events-none fixed z-30 w-64 rounded-xl border px-4 py-3 backdrop-blur ${overlayTheme.panel}`} style={{ left: clamp(tooltipNode.x + activeCanvasPanX + 34, 12, sceneSize.width - 274), top: clamp(tooltipNode.y + activeCanvasPanY - 28, 12, sceneSize.height - 184) }}><div className="mb-2 flex items-start justify-between gap-2"><p className={`font-serif text-[15px] leading-4 ${overlayTheme.title}`}>{hovered.company}</p><span className={hovered.pnl >= 0 ? darkMode ? "font-mono text-[10px] text-[#4ade80]" : "font-mono text-[10px] text-emerald-700" : darkMode ? "font-mono text-[10px] text-[#ff6b6b]" : "font-mono text-[10px] text-[#ff3b3b]"}>{hovered.pnl >= 0 ? "+" : ""}{hovered.pnlPercent.toFixed(1)}%</span></div><div className="grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-[10px] tabular-nums">{viewMode === "transactions" && <><span className="text-stone-400">Date</span><span className="text-right">{formatTransactionDate(hovered.oldestDate)}</span></>}<span className="text-stone-400">Qty</span><span className="text-right">{hovered.qty}</span><span className="text-stone-400">Buy price</span><span className="text-right">{formatPrice(hovered.avgPrice)}</span><span className="text-stone-400">Current price</span><span className="text-right">{formatPrice(hovered.currentPrice)}</span><span className="text-stone-400">Invested</span><span className="text-right">{formatCurrency(hovered.investedValue)}</span><span className="text-stone-400">Value</span><span className="text-right">{formatCurrency(hovered.currentValue)}</span><span className="text-stone-400">P&amp;L</span><span className={hovered.pnl >= 0 ? darkMode ? "text-right text-[#4ade80]" : "text-right text-emerald-700" : darkMode ? "text-right text-[#ff6b6b]" : "text-right text-[#ff3b3b]"}>{formatCurrency(hovered.pnl)}</span></div></motion.aside>}</AnimatePresence>
+      <AnimatePresence>{hovered && tooltipNode && !selected && <motion.aside initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.16 }} className={`pointer-events-none fixed z-30 w-64 rounded-xl border px-4 py-3 backdrop-blur ${overlayTheme.panel}`} style={{ left: clamp(tooltipNode.x + activeCanvasPanX + 34, 12, sceneSize.width - 274), top: clamp(tooltipNode.y + activeCanvasPanY - window.scrollY - 28, 12, sceneSize.height - 184) }}><div className="mb-2 flex items-start justify-between gap-2"><p className={`font-serif text-[15px] leading-4 ${overlayTheme.title}`}>{hovered.company}</p><span className={hovered.pnl >= 0 ? darkMode ? "font-mono text-[10px] text-[#4ade80]" : "font-mono text-[10px] text-emerald-700" : darkMode ? "font-mono text-[10px] text-[#ff6b6b]" : "font-mono text-[10px] text-[#ff3b3b]"}>{hovered.pnl >= 0 ? "+" : ""}{hovered.pnlPercent.toFixed(1)}%</span></div><div className="grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-[10px] tabular-nums">{viewMode === "transactions" && <><span className="text-stone-400">Date</span><span className="text-right">{formatTransactionDate(hovered.oldestDate)}</span></>}<span className="text-stone-400">Qty</span><span className="text-right">{hovered.qty}</span><span className="text-stone-400">Buy price</span><span className="text-right">{formatPrice(hovered.avgPrice)}</span><span className="text-stone-400">Current price</span><span className="text-right">{formatPrice(hovered.currentPrice)}</span><span className="text-stone-400">Invested</span><span className="text-right">{formatCurrency(hovered.investedValue)}</span><span className="text-stone-400">Value</span><span className="text-right">{formatCurrency(hovered.currentValue)}</span><span className="text-stone-400">P&amp;L</span><span className={hovered.pnl >= 0 ? darkMode ? "text-right text-[#4ade80]" : "text-right text-emerald-700" : darkMode ? "text-right text-[#ff6b6b]" : "text-right text-[#ff3b3b]"}>{formatCurrency(hovered.pnl)}</span></div></motion.aside>}</AnimatePresence>
 
-      <AnimatePresence>{viewMode === "holdings" && selected && focusNode && <motion.aside initial={{ opacity: 0, y: 12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.98 }} transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }} className={`fixed z-40 w-[min(336px,calc(100vw-28px))] overflow-hidden rounded-2xl border backdrop-blur ${overlayTheme.panel}`} style={{ left: clamp(focusOnRight ? focusNode.x + 76 : focusNode.x - 412, 14, sceneSize.width - 350), top: clamp(focusNode.y - 132, 14, sceneSize.height - 494) }}><div className={`flex items-start justify-between border-b px-5 py-4 ${overlayTheme.divider}`}><div><p className={`font-serif text-[19px] leading-5 ${overlayTheme.title}`}>{selected.company}</p><p className="mt-1 font-mono text-[9px] uppercase tracking-[.17em] text-stone-400">{selected.lots.length === 1 ? "Transaction lot" : `${selected.lots.length} transaction lots`}</p></div><button type="button" onClick={() => setSelectedId(null)} aria-label="Close details" className={`rounded-full p-1 transition ${overlayTheme.closeButton}`}><X size={16} /></button></div><div className={`grid grid-cols-2 gap-x-5 border-b px-5 py-3 ${overlayTheme.divider}`}><MetricRow label="Quantity" value={selected.qty.toLocaleString("en-IN")} theme={overlayTheme} /><MetricRow label="Avg. buy" value={formatPrice(selected.avgPrice)} theme={overlayTheme} /><MetricRow label="Current" value={formatPrice(selected.currentPrice)} theme={overlayTheme} /><MetricRow label="Unrealized P&L" value={`${selected.pnl >= 0 ? "+" : ""}${formatCurrency(selected.pnl)}`} theme={overlayTheme} /></div><div className="max-h-48 overflow-y-auto px-5 py-3"><p className={`mb-2 font-mono text-[9px] uppercase tracking-[.18em] ${overlayTheme.muted}`}>Lot breakdown</p>{selected.lots.map((lot) => { const lotPnl = lot.buy_qty * (lot.current_price - lot.avg_price); const days = ageInDays(lot.buy_date); const completedYears = Math.floor((days ?? 0) / 365); return <div key={lot.id} className={`grid grid-cols-[1fr_auto] gap-2 border-t py-2 first:border-t-0 ${overlayTheme.divider}`}><div><p className={`font-mono text-[10px] ${overlayTheme.lotText}`}>{lot.buy_qty} × {formatPrice(lot.avg_price)}</p><p className={`font-mono text-[9px] ${overlayTheme.muted}`}>{formatTransactionDate(lot.buy_date)}{days ? ` · ${days}d` : ""}{completedYears ? ` · ${completedYears}y complete` : ""}</p></div><span className={`self-center font-mono text-[10px] ${lotPnl >= 0 ? overlayTheme.profit : overlayTheme.loss}`}>{lotPnl >= 0 ? "+" : ""}{formatCurrency(lotPnl)}</span></div>; })}</div>{selected.taxSensitive && <div className={`flex items-center gap-2 border-t px-5 py-3 font-mono text-[10px] ${overlayTheme.taxNotice}`}><Sparkles size={13} /> Loss lot near/over the 365-day threshold.</div>}</motion.aside>}</AnimatePresence>
+      <AnimatePresence>{viewMode === "holdings" && selected && focusNode && <motion.aside initial={{ opacity: 0, y: 12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.98 }} transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }} className={`fixed z-40 w-[min(336px,calc(100vw-28px))] overflow-hidden rounded-2xl border backdrop-blur ${overlayTheme.panel}`} style={{ left: clampCardLeft(focusNode.x, sceneSize.width, focusOnRight), top: clamp(focusNode.y + activeCanvasPanY - window.scrollY - 132, 14, sceneSize.height - 494) }}><div className={`flex items-start justify-between border-b px-5 py-4 ${overlayTheme.divider}`}><div><p className={`font-serif text-[19px] leading-5 ${overlayTheme.title}`}>{selected.company}</p><p className="mt-1 font-mono text-[9px] uppercase tracking-[.17em] text-stone-400">{selected.lots.length === 1 ? "Transaction lot" : `${selected.lots.length} transaction lots`}</p></div><button type="button" onClick={() => setSelectedId(null)} aria-label="Close details" className={`rounded-full p-1 transition ${overlayTheme.closeButton}`}><X size={16} /></button></div><div className={`grid grid-cols-2 gap-x-5 border-b px-5 py-3 ${overlayTheme.divider}`}><MetricRow label="Quantity" value={selected.qty.toLocaleString("en-IN")} theme={overlayTheme} /><MetricRow label="Avg. buy" value={formatPrice(selected.avgPrice)} theme={overlayTheme} /><MetricRow label="Current" value={formatPrice(selected.currentPrice)} theme={overlayTheme} /><MetricRow label="Unrealized P&L" value={`${selected.pnl >= 0 ? "+" : ""}${formatCurrency(selected.pnl)}`} theme={overlayTheme} /></div><div className="max-h-48 overflow-y-auto px-5 py-3"><p className={`mb-2 font-mono text-[9px] uppercase tracking-[.18em] ${overlayTheme.muted}`}>Lot breakdown</p>{selected.lots.map((lot) => { const lotPnl = lot.buy_qty * (lot.current_price - lot.avg_price); const days = ageInDays(lot.buy_date); const completedYears = Math.floor((days ?? 0) / 365); return <div key={lot.id} className={`grid grid-cols-[1fr_auto] gap-2 border-t py-2 first:border-t-0 ${overlayTheme.divider}`}><div><p className={`font-mono text-[10px] ${overlayTheme.lotText}`}>{lot.buy_qty} × {formatPrice(lot.avg_price)}</p><p className={`font-mono text-[9px] ${overlayTheme.muted}`}>{formatTransactionDate(lot.buy_date)}{days ? ` · ${days}d` : ""}{completedYears ? ` · ${completedYears}y complete` : ""}</p></div><span className={`self-center font-mono text-[10px] ${lotPnl >= 0 ? overlayTheme.profit : overlayTheme.loss}`}>{lotPnl >= 0 ? "+" : ""}{formatCurrency(lotPnl)}</span></div>; })}</div>{selected.taxSensitive && <div className={`flex items-center gap-2 border-t px-5 py-3 font-mono text-[10px] ${overlayTheme.taxNotice}`}><Sparkles size={13} /> Loss lot near/over the 365-day threshold.</div>}</motion.aside>}</AnimatePresence>
 
-      <PortfolioDrawer open={drawerOpen} onOpenChange={setDrawerOpen} litterboxRef={litterboxRef} viewMode={viewMode} setViewMode={(mode) => { setViewMode(mode); setSelectedId(null); }} visualLens={visualLens} setVisualLens={setVisualLens} taxFilter={taxFilter} setTaxFilter={(filter) => { setTaxFilter(filter); setSelectedId(null); }} showEtfs={showEtfs} setShowEtfs={setShowEtfs} darkMode={darkMode} etfLotCount={etfLotCount} frozen={frozen} setFrozen={setFrozen} reducedMotion={reducedMotion} repulsion={repulsion} setRepulsion={setRepulsion} gravityOn={gravityOn} setGravityOn={setGravityOn} showPnlBadges={showPnlBadges} setShowPnlBadges={setShowPnlBadges} onImportFile={importFile} uploadNotice={uploadNotice} hasDates={timeline.hasDates} onRestore={() => { setUploadNotice(null); fetch(PORTFOLIO_CSV_URL).then(parsePortfolioResponse).then(({ records: nextRecords, lastModified }) => { localStorage.removeItem(PORTFOLIO_STORAGE_KEY); setRecords(nextRecords); setDataUpdatedAt(lastModified ?? new Date().toISOString()); setUploadNotice({ kind: "success", message: `${nextRecords.length} lots reloaded from portfolio.csv.` }); setSelectedId(null); setHoveredId(null); resetViewport(); }).catch((error: unknown) => { setUploadNotice({ kind: "error", message: error instanceof Error ? error.message : "Portfolio download failed." }); }); }} visibleKittyCount={visiblePoints.length} loadedLotCount={eligibleRecords.length} />
+      <PortfolioDrawer open={drawerOpen} onOpenChange={setDrawerOpen} litterboxRef={litterboxRef} viewMode={viewMode} setViewMode={(mode) => { setViewMode(mode); setSelectedId(null); }} visualLens={visualLens} setVisualLens={setVisualLens} taxFilter={taxFilter} setTaxFilter={(filter) => { setTaxFilter(filter); setSelectedId(null); }} showEtfs={showEtfs} setShowEtfs={setShowEtfs} darkMode={darkMode} etfLotCount={etfLotCount} frozen={frozen} setFrozen={setFrozen} reducedMotion={reducedMotion} repulsion={repulsion} setRepulsion={setRepulsion} gravityOn={gravityOn} setGravityOn={setGravityOn} showPnlBadges={showPnlBadges} setShowPnlBadges={setShowPnlBadges} showHalos={showHalos} setShowHalos={setShowHalos} onImportFile={importFile} uploadNotice={uploadNotice} hasDates={timeline.hasDates} onRestore={() => { setUploadNotice(null); fetch(PORTFOLIO_CSV_URL).then(parsePortfolioResponse).then(({ records: nextRecords, lastModified }) => { localStorage.removeItem(PORTFOLIO_STORAGE_KEY); setRecords(nextRecords); setDataUpdatedAt(lastModified ?? new Date().toISOString()); setUploadNotice({ kind: "success", message: `${nextRecords.length} lots reloaded from portfolio.csv.` }); setSelectedId(null); setHoveredId(null); resetViewport(); }).catch((error: unknown) => { setUploadNotice({ kind: "error", message: error instanceof Error ? error.message : "Portfolio download failed." }); }); }} visibleKittyCount={visiblePoints.length} loadedLotCount={eligibleRecords.length} />
       <div className={getPortfolioFooterClassName(darkMode)}><span>Data updated {dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</span><span aria-hidden="true" className={PORTFOLIO_FOOTER_SEPARATOR_CLASS}>·</span><a href="https://thecontrarian.in" target="_blank" rel="noreferrer" className={darkMode ? "transition hover:text-stone-200" : "transition hover:text-stone-800"}>© 2026 Mahesh Shantaram / thecontrarian.in</a></div>
     </main>
   );

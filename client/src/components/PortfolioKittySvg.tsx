@@ -26,11 +26,15 @@ export default function PortfolioKittySvg({ stroke, fill, fillOpacity, strokeWid
       {fillOpacity > 0 && <path d="M64 50 C72 36 92 31 110 39 C126 47 132 64 127 82 C122 98 130 116 133 137 C136 158 120 174 102 169 C94 178 78 176 73 166 C61 165 55 154 58 137 C61 119 55 106 53 89 C49 71 53 58 64 50 Z" fill={fill} opacity={fillOpacity} />}
       <path className="cat-path" d="M121.48,93.28a54.4,54.4,0,0,0,12-33.48A36.64,36.64,0,0,0,120,32.96S118.92,20,114.8,18.24s-16.4,8-16.4,8-20,.84-27.72,5.96c0,0-17.76-4.24-20-1.16s1.04,16.56,1.04,16.56a36.4,36.4,0,0,0-5.8,20.68c0,13,19.64,31.32,19.64,31.32a84.84,84.84,0,0,0-12.48,41.72c0,17.08,8.32,21.2,8.32,21.2" />
       <path className="cat-path" d="M69,118.44,80.6,164s-4.96,10.08,10.28,10.08,12-12.64,7.68-14.36l-7.52-28.88" />
-      {/* Hind leg and haunch only — the tail sweep that rose from the haunch
-          toward (146, 51) was removed; silhouette is now ears + body. */}
+      {/* Body, hind legs, and front paws. No tail. */}
       <path className="cat-path" d="M116.52,152.28c-8,3.24-10.96,15.72,3.24,15.72s19.68-16,19.68-27a116.28,116.28,0,0,0-4.96-27" />
       <path className="cat-path" d="M100.92,161.76a76,76,0,0,1,9-1.08" />
       <path className="cat-path" d="M80,166.28a26.72,26.72,0,0,1-11.28,1.72c-4.28,0-14-7.08-.6-15.64" />
+      {/* Front paws — small curves that sit on the body's bottom edge so the
+          silhouette reads as a sitting cat with paws tucked in. Paws stay inside
+          the existing body fill, so the hitbox width ratio (0.75) is unchanged. */}
+      <path className="cat-path" d="M76,168.4c0.4,2.8,0.6,5.4-2.4,6.4c-3.6,1.2-6-0.4-5.6-3.6" />
+      <path className="cat-path" d="M112,168.4c-0.4,2.8-0.6,5.4,2.4,6.4c3.6,1.2,6-0.4,5.6-3.6" />
       <circle className="cat-path" cx="91.72" cy="111.84" r="10.04" />
       <path className="cat-path" d="M95.56,102.48a148.56,148.56,0,0,0,23.52-2.84" />
       <path className="cat-path" d="M65.56,99.64a118.84,118.84,0,0,0,22.44,2.88" />
