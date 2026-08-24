@@ -193,12 +193,14 @@ describe("zoneRepulsion (no-go zones)", () => {
 describe("badge / coin anchor geometry (all four permutations)", () => {
   // Mirrors CatGlyph's percentage anchors so regressions in the glyph fail here.
   const BADGE = { right: "16%", bottom: "14%", size: "12%" };
-  const COIN = { left: "44%", top: "54%", size: "10%" };
+  const COIN = { left: "44%", leftOffset: -8, top: "54%", size: "10%" };
 
   function rectsFor(sizePx: number) {
     const pct = (value: string) => parseFloat(value) / 100 * sizePx;
-    const badge = { left: sizePx - pct(BADGE.right) - pct(BADGE.size), top: sizePx - pct(BADGE.bottom) - pct(BADGE.size), size: pct(BADGE.size) };
-    const coin = { left: pct(COIN.left), top: pct(COIN.top), size: pct(COIN.size) };
+    const badgeSize = Math.max(13, pct(BADGE.size));
+    const coinSize = Math.max(12, pct(COIN.size));
+    const badge = { left: sizePx - pct(BADGE.right) - badgeSize, top: sizePx - pct(BADGE.bottom) - badgeSize, size: badgeSize };
+    const coin = { left: pct(COIN.left) + COIN.leftOffset, top: pct(COIN.top), size: coinSize };
     return { badge, coin };
   }
 

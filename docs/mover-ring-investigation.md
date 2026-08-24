@@ -32,8 +32,10 @@ Feature-flagged rather than deleted or left rendering a lie:
 
 - `MOVER_RING_ENABLED = false` in `client/src/pages/Home.tsx`, gated in
   `CatGlyph.isMover`, with the full investigation note inline.
-- The legend's mover-ring entry was removed so we don't document a feature
-  that cannot fire.
+- The legend's mover-ring entry is feature-gated behind the same flag:
+  `PortfolioLegend` takes a `moverRingEnabled` prop (wired to
+  `MOVER_RING_ENABLED`) and hides the row while it is false, so we don't
+  surface a feature that cannot fire.
 - `kittyField.test.ts` pins both facts: the shipped CSV has no prev_close
   column, and a CSV *with* prev_close produces correct mover candidates
   (>=2% vs <1%).

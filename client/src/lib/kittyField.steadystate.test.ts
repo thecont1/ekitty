@@ -79,7 +79,7 @@ describe("steady-state field (real portfolio.csv, gravity on)", () => {
         const headerFloor = headerZone.bottom + ZONE_MARGIN_PX;
         const usableHeight = Math.max(120, LAYOUT_HEIGHT - headerFloor - 40);
         const jitter = ((seed >>> 13) % 140) / 1000;
-        const anchorY = headerFloor + radii[index] * 0.6 + Math.max(0, bandNorms[index] - 0.14) * usableHeight;
+        const anchorY = headerFloor + radii[index] * 0.6 + Math.max(0, bandNorms[index] + jitter - 0.14) * usableHeight;
         const anchorX = PHYSICS_WIDTH * (0.08 + ((seed % 840) / 1000));
         const [ax, ay] = anchorOutsideZones(anchorX, anchorY, radii[index], [headerZone, activeIconsZone]);
         node.vx += (ax - node.x) * 0.00048 * delta;
@@ -178,33 +178,6 @@ describe("steady-state field (real portfolio.csv, gravity on)", () => {
       }
     }
     expect(worstRatio).toBeLessThan(0.15);
-  });
-
-  it("max Field Motion slider value clears residual crowding that the default leaves", () => {
-    const runWorstShortfall = (spaciousness: number) => {
-      let worst = 0;
-      // Re-run with a different spaciousness by scaling radii gaps via
-      // desiredSeparation inside a fresh simulate — simulate() is closed over
-      // DEFAULT_REPULSION, so approximate by comparing shortfall distributions.
-      const sims = simulate(4000);
-      const radii = sizes.map((size) => kittyCollisionRadius(size));
-      for (let a = 0; a < sims.length; a += 1) {
-        for (let b = a + 1; b < sims.length; b += 1) {
-          const distance = Math.hypot(sims[b].x - sims[a].x, sims[b].y - sims[a].y);
-          worst = Math.max(worst, desiredSeparation(radii[a], radii[b], spaciousness) - distance);
-        }
-      }
-      return worst;
-    };
-    const worstAtDefault = runWorstShortfall(DEFAULT_REPULSION);
-    const worstAtMax = runWorstShortfall(2.6);
-    // Raising the slider must not worsen crowding, and the max end must clear
-    // the bulk of what the default leaves (positions are fixed here, but the
-    // gap demand grows — so assert the solver's positional slack instead:
-    // the real assertion is that max-spaciousness positions still exist where
-    // every pair meets its gap; verified by the no-overlap invariant above).
-    expect(worstAtMax).toBeGreaterThanOrEqual(worstAtDefault * 0); // sanity: finite
-    expect(Number.isFinite(worstAtMax)).toBe(true);
   });
 
   it("keeps gravity bands distributed across the full layout", () => {

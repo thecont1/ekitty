@@ -51,7 +51,7 @@ type SimNode = { x: number; y: number; vx: number; vy: number };
 type VisiblePoint = { point: PortfolioPoint; size: number; stroke: number; pigment: PigmentStyle; emphasis: EmphasisStyle; bobDuration: number };
 type Timeline = { months: number[]; indexFor: Record<string, number>; hasDates: boolean };
 type TimelineGesture = "idle" | "pan";
-type TimelineDrag = { startX: number; startY: number; startPanX: number; startPanY: number; pointerId: number; gesture: TimelineGesture };
+type TimelineDrag = { startX: number; startY: number; startPanX: number; pointerId: number; gesture: TimelineGesture };
 
 const PORTFOLIO_CSV_URL = "/data/portfolio.csv";
 const PORTFOLIO_STORAGE_KEY = "ekitty-portfolio-csv";
@@ -193,7 +193,7 @@ export function CatGlyph({ point, size, stroke, pigment, emphasis, bobDuration, 
           {showBadges && <span aria-hidden="true" className="absolute bottom-[14%] right-[16%] grid h-[12%] min-h-[13px] w-[12%] min-w-[13px] place-items-center rounded-full border border-current bg-white/90 font-mono text-[9px] font-bold leading-none text-stone-800">{emphasis.symbol}</span>}
           {/* The tax-loss coin occupies a fixed collar slot while the +/−
               badge owns the bottom-right. Their presence is independent. */}
-          {point.taxSensitive && <span aria-label="Tax-loss eligible (held 330+ days)" className="absolute left-[44%] top-[54%] h-[10%] min-h-[12px] w-[10%] min-w-[12px] rounded-full border-[1.25px] border-black bg-[#D8AE37] shadow-[0_0_0_1px_rgba(255,255,255,.65)]" />}
+          {point.taxSensitive && <span aria-label="Tax-loss eligible (held 330+ days)" className="absolute left-[calc(44%-8px)] top-[54%] h-[10%] min-h-[12px] w-[10%] min-w-[12px] rounded-full border-[1.25px] border-black bg-[#D8AE37] shadow-[0_0_0_1px_rgba(255,255,255,.65)]" />}
           {isMover && <span aria-hidden="true" data-ring="mover" className="kitty-mover-ring absolute inset-[-4%] rounded-full border-[2.5px]" style={{ borderStyle: "dashed", borderColor: darkMode ? MOVER_RING_COLOR_DARK : MOVER_RING_COLOR_LIGHT }} />}
           {point.isETF && <span aria-hidden="true" className="pointer-events-none absolute left-[60%] top-[76%] rounded-sm border border-[#9AA5AA] bg-white/95 px-[5%] py-[1.5%] font-mono text-[7px] font-semibold tracking-[.08em] text-stone-700 shadow-[0_1px_3px_rgba(41,37,36,.12)]">ETF</span>}
         </span>
@@ -315,7 +315,6 @@ export default function Home() {
   const virtualCanvasWidth = viewMode === "transactions" ? Math.max(sceneSize.width, timeline.months.length * transactionStripWidth) : Math.max(sceneSize.width * 1.4, 1_500);
   const virtualCanvasHeight = viewMode === "transactions" ? Math.max(1_560, sceneSize.height * 2.25) : Math.max(1_320, sceneSize.height * 1.85);
   const minCanvasPanX = Math.min(0, sceneSize.width - virtualCanvasWidth);
-  const minCanvasPanY = 0;
   const physicsWidth = virtualCanvasWidth;
   const transactionLayoutHeight = virtualCanvasHeight;
   const pnlScaleMargin = sceneSize.width < 640 ? 66 : 84;
@@ -480,7 +479,7 @@ export default function Home() {
       setCameraTransform(minCanvasPanX, 0);
     }
     cameraTween.current?.kill();
-    horizontalDrag.current = { startX: event.clientX, startY: event.clientY, startPanX: camera.current.x, startPanY: camera.current.y, pointerId: event.pointerId, gesture: "idle" };
+    horizontalDrag.current = { startX: event.clientX, startY: event.clientY, startPanX: camera.current.x, pointerId: event.pointerId, gesture: "idle" };
     event.currentTarget.setPointerCapture(event.pointerId);
   }, [isWorldFit, minCanvasPanX, setCameraTransform]);
 
@@ -494,8 +493,8 @@ export default function Home() {
       drag.gesture = "pan";
       setTimelineGesture(drag.gesture);
     }
-    setCameraTransform(clamp(drag.startPanX + deltaX, minCanvasPanX, 0), clamp(drag.startPanY + deltaY, minCanvasPanY, 0));
-  }, [minCanvasPanX, minCanvasPanY, setCameraTransform]);
+    setCameraTransform(clamp(drag.startPanX + deltaX, minCanvasPanX, 0), camera.current.y);
+  }, [minCanvasPanX, setCameraTransform]);
 
   const endTimelineDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
     const drag = horizontalDrag.current;
@@ -506,14 +505,12 @@ export default function Home() {
   }, []);
 
   const scrollTimeline = useCallback((event: React.WheelEvent<HTMLElement>) => {
-    if (viewMode === "holdings" || (!event.deltaX && !event.deltaY)) return;
+    if (viewMode === "holdings" || Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
     event.preventDefault();
     const nextX = clamp(camera.current.x - event.deltaX, minCanvasPanX, 0);
-    const nextY = clamp(camera.current.y - event.deltaY, minCanvasPanY, 0);
-    setCameraTransform(nextX, nextY);
+    setCameraTransform(nextX, camera.current.y);
     setTimelinePanOffset(nextX);
-    setCanvasPanY(nextY);
-  }, [minCanvasPanX, minCanvasPanY, setCameraTransform, viewMode]);
+  }, [minCanvasPanX, setCameraTransform, viewMode]);
 
   useEffect(() => {
     const updateSize = () => setSceneSize({ width: window.innerWidth, height: window.innerHeight });
@@ -825,9 +822,9 @@ export default function Home() {
         <button type="button" aria-label="Reset portfolio field" onPointerDown={(event) => event.stopPropagation()} onClick={resetViewport} className="relative grid min-h-11 min-w-11 w-[54px] place-items-center rounded-l-full transition hover:-translate-y-0.5 active:scale-95"><img src={flagIcon} alt="" className={darkMode ? "h-7 w-7 opacity-90 invert" : "h-7 w-7 opacity-90"} /></button>
         <button type="button" aria-label={isWorldFit ? "Restore normal world view" : "Show all kitties"} aria-pressed={isWorldFit} onPointerDown={(event) => event.stopPropagation()} onClick={toggleWorldFit} className="grid min-h-11 min-w-11 place-items-center rounded-full transition hover:-translate-y-0.5 active:scale-95"><img src={broomIcon} alt="" className={darkMode ? "h-7 w-7 opacity-90 invert" : "h-7 w-7 opacity-90"} /></button>
         <button type="button" aria-label="Toggle dark mode" aria-pressed={darkMode} onPointerDown={(event) => event.stopPropagation()} onClick={() => setDarkMode((current) => !current)} className="grid min-h-11 min-w-11 place-items-center rounded-full transition hover:-translate-y-0.5 active:scale-95"><img src={darkModeIcon} alt="" className={darkMode ? "h-9 w-9 invert" : "h-9 w-9"} /></button>
-        <button type="button" aria-label="Show portfolio legend" aria-expanded={legendOpen} onClick={() => setLegendOpen((current) => { if (current) writeLegendSeen(window.localStorage); return !current; })} className="grid min-h-11 min-w-11 place-items-center rounded-full transition hover:-translate-y-0.5 active:scale-95"><img src={portfolioHelpIcon} alt="" className={darkMode ? "h-9 w-9 invert" : "h-9 w-9"} /></button>
+        <button type="button" aria-label="Show portfolio legend" aria-expanded={legendOpen} onClick={() => { if (legendOpen) { setLegendOpen(false); writeLegendSeen(window.localStorage); } else { setSelectedId(null); setLegendOpen(true); } }} className="grid min-h-11 min-w-11 place-items-center rounded-full transition hover:-translate-y-0.5 active:scale-95"><img src={portfolioHelpIcon} alt="" className={darkMode ? "h-9 w-9 invert" : "h-9 w-9"} /></button>
       </div>
-      {legendOpen && <PortfolioLegend darkMode={darkMode} visualLens={visualLens} onClose={() => { setLegendOpen(false); writeLegendSeen(window.localStorage); }} onOpen={() => setSelectedId(null)} />}
+      {legendOpen && <PortfolioLegend darkMode={darkMode} visualLens={visualLens} moverRingEnabled={MOVER_RING_ENABLED} onClose={() => { setLegendOpen(false); writeLegendSeen(window.localStorage); }} />}
       {records.length === 0 && <div className="fixed inset-0 z-[55] flex flex-col items-center justify-center" onDragOver={(event) => { event.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={(event) => { event.preventDefault(); setDragOver(false); importFile(event.dataTransfer.files[0]); }}><label className="flex cursor-pointer flex-col items-center gap-6" onDragOver={(event) => { event.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={(event) => { event.preventDefault(); setDragOver(false); importFile(event.dataTransfer.files[0]); }}><div className="transition-transform duration-200" style={{ transform: dragOver ? "scale(1.08)" : "scale(1)" }}><PortfolioKittySvg stroke={dragOver ? "#D8AE37" : darkMode ? "#a6c2cc" : "#ff3b3b"} fill={dragOver ? "#D8AE37" : "transparent"} fillOpacity={dragOver ? 0.08 : 0} strokeWidth={dragOver ? 3 : 2} className="h-48 w-48" /></div><div className="text-center"><p className={darkMode ? "font-serif text-2xl text-stone-100" : "font-serif text-2xl text-stone-900"}>{dragOver ? "Release to load your portfolio" : "Drop your portfolio.csv here"}</p><p className={darkMode ? "mt-2 font-mono text-[10px] tracking-[.12em] text-stone-400" : "mt-2 font-mono text-[10px] tracking-[.12em] text-stone-400"}>or click to browse · columns: company · buy_qty · avg_price · current_price · txn_date</p></div><input type="file" accept=".csv,text/csv" className="sr-only" onChange={(event) => importFile(event.target.files?.[0])} /></label>{uploadNotice && <p className={uploadNotice.kind === "error" ? darkMode ? "mt-6 font-mono text-[10px] text-[#ff6b6b]" : "mt-6 font-mono text-[10px] text-[#ff3b3b]" : darkMode ? "mt-6 font-mono text-[10px] text-[#4ade80]" : "mt-6 font-mono text-[10px] text-emerald-700"}>{uploadNotice.message}</p>}</div>}
       {viewMode === "transactions" && <div ref={gridWorld} aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-0 overflow-hidden" style={{ width: virtualCanvasWidth, height: virtualCanvasHeight }}>{pnlTicks.map((tick) => { const ratio = (tick + pnlBound) / (pnlBound * 2); return <div key={`grid-${tick}`} className={darkMode ? "absolute left-0 right-0 border-t border-[#20353b]/28" : "absolute left-0 right-0 border-t border-[#dbeef8]/34"} style={{ top: pnlScaleMargin + (1 - ratio) * (transactionLayoutHeight - pnlScaleMargin * 2) }} />; })}{timeline.months.map((month, index) => <div key={month} className={darkMode ? "absolute bottom-0 top-0 border-l border-[#284149]/42" : "absolute bottom-0 top-0 border-l border-[#edf7ff]/46"} style={{ left: index * transactionStripWidth }} />)}{elapsedYearGuides.map((guide) => { const index = timeline.months.indexOf(guide.serial); return <div key={`year-${guide.years}`} className="absolute bottom-0 top-0 w-[3px] bg-[#70b9e8] shadow-[0_0_0_1px_rgba(112,185,232,.14)]" style={{ left: index * transactionStripWidth }} />; })}</div>}
       {viewMode === "transactions" && <div aria-hidden="true" className={darkMode ? "pointer-events-none fixed inset-x-0 top-0 z-20 h-10 overflow-hidden bg-[#101617]/88 backdrop-blur-[2px]" : "pointer-events-none fixed inset-x-0 top-0 z-20 h-10 overflow-hidden bg-white/88 backdrop-blur-[2px]"}><div ref={datelineWorld} className="relative h-full" style={{ width: virtualCanvasWidth }}>{timeline.months.map((month, index) => index % 3 === 0 && <span key={`label-${month}`} className={darkMode ? "absolute top-3 hidden font-mono text-[9px] font-medium tracking-[.12em] text-[#a6c2cc] md:block" : "absolute top-3 hidden font-mono text-[9px] font-medium tracking-[.12em] text-[#61869d] md:block"} style={{ left: index * transactionStripWidth + 4 }}>{labelMonth(month)}</span>)}{elapsedYearGuides.map((guide) => { const index = timeline.months.indexOf(guide.serial); return <span key={`year-label-${guide.years}`} className="absolute top-7 font-mono text-[8px] tracking-[.12em] text-[#4096cf]" style={{ left: index * transactionStripWidth + 5 }}>{guide.years}y</span>; })}</div></div>}
