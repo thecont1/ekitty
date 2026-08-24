@@ -76,6 +76,8 @@ Everything runs in your browser. Your CSV is parsed locally, stored in your brow
 
 ## Credits & license
 
-Built by [Mahesh Shantaram](https://thecontrarian.in). MIT licensed — see [LICENSE](LICENSE) if present in your copy, otherwise treat it as MIT per `package.json`.
+Built by [Mahesh Shantaram](https://thecontrarian.in).
+
+Free for individuals to use, study, and modify for personal, non-commercial purposes. Businesses that want to offer ekitty commercially need a paid license — see [LICENSE.md](LICENSE.md) or get in touch.
 
 Curious how it works under the hood? See [TECH-SPEC.md](TECH-SPEC.md).

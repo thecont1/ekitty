@@ -46,6 +46,7 @@ vite.config.ts            # build config + three custom dev plugins
 | Forms/validation | react-hook-form + zod v4 | — |
 | Tests | Vitest | 2.1 |
 | Package manager | pnpm 10 (enforced via `packageManager` + SHA-512 pin) | 10.4 |
+| License | Dual: non-commercial free / commercial paid — see [LICENSE.md](LICENSE.md) | — |
 
 ### Deliberate absences
 
@@ -106,10 +107,9 @@ The design language ("Inkfield Menagerie", documented in `ideas.md`) drives seve
 - **wouter is patched** (`patches/wouter@3.7.1.patch`). The patch is declared in `pnpm.overrides`-style config so it survives lockfile regeneration. If you bump wouter, re-check the patch applies.
 - **esbuild bundles the server separately** from Vite (`server/index.ts → dist/index.js`, `--packages=external`): the server keeps normal Node resolution for express while the client gets Vite's optimised bundle. One `pnpm build` produces both.
 - **Vite root points at `client/`**, aliases `@` → `client/src`, `@shared` → `shared/`. Output goes to `dist/public`, matching what the Express server serves.
-- **Three custom dev-only Vite plugins** live inline in `vite.config.ts`:
-  1. **Manus debug collector** — POST `/__manus__/logs` middleware that writes browser console/network/session logs to `.manus-logs/*.log`, auto-trimmed at 1MB. Dev-only; disabled in production builds.
-  2. **Storage proxy** — serves `/data/*` first from local `client/public/data/` (the canonical privacy-preserving source) and falls back to a presigned Forge storage URL when configured with `BUILT_IN_FORGE_*` env vars. Local file always wins.
-  3. **jsx-loc plugin** — injects source-location attributes for debugging.
+- **Two custom dev-only Vite plugins** live inline in `vite.config.ts`:
+  1. **Storage proxy** — serves `/data/*` from local `client/public/data/`, the canonical privacy-preserving source. Missing files return 404.
+  2. **jsx-loc plugin** — injects source-location attributes for debugging.
 - **Analytics is opt-in via env.** `VITE_ANALYTICS_ENDPOINT` / `VITE_ANALYTICS_WEBSITE_ID` (self-hosted Umami) are interpolated into `client/index.html`; copy `.env.example` → `.env` or the script tag resolves empty. No third-party analytics by default.
 - **Type-checking is a gate:** `pnpm check` runs `tsc --noEmit`; formatting is Prettier (`.prettierrc`).
 
