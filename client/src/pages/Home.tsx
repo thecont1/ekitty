@@ -271,7 +271,15 @@ export default function Home() {
         const rect = el.getBoundingClientRect();
         return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
       };
-      measuredZonesRef.current = { header: toZone(headerEl), icons: toZone(iconsEl) };
+      const iconRect = iconsEl.getBoundingClientRect();
+      measuredZonesRef.current = {
+        header: toZone(headerEl),
+        // The entire icon column is a no-go zone from the very top of the
+        // viewport to the bottom — not just the stack's box — so kitties
+        // bounce off an invisible full-height border instead of drifting
+        // behind the buttons at any scroll/pan position.
+        icons: { left: iconRect.left, top: 0, right: iconRect.right, bottom: window.innerHeight },
+      };
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -681,16 +689,18 @@ export default function Home() {
   return (
     <main className={darkMode ? "dark relative h-[100dvh] w-screen overflow-hidden bg-[#101617] text-stone-100" : "relative h-[100dvh] w-screen overflow-hidden bg-white text-stone-900"}>
       <PortfolioHeader stats={portfolioStats} hasPortfolio={records.length > 0} darkMode={darkMode} onOpenPortfolio={() => { setViewMode("holdings"); setDrawerOpen(true); }} />
-      {/* One cohesive control stack, top-right: help, reset, fit, dark mode.
-          Step 4's right no-go zone is measured from this element's live box. */}
+      {/* One cohesive control stack, top-right: litterbox, flag, fit, dark
+          mode, help. The help (?) sits at the bottom so its legend panel can
+          open directly beneath the stack. Step 4's right no-go zone is
+          measured from this element's live box. */}
       <div id="ekitty-icon-cluster" className="fixed right-3 top-3 z-50 flex flex-col items-center gap-2 rounded-full">
         <button ref={litterboxRef} type="button" aria-label={drawerOpen ? "Close portfolio controls" : "Open portfolio controls"} aria-expanded={drawerOpen} aria-controls="portfolio-controls-pane" onClick={() => setDrawerOpen((current) => !current)} className="grid min-h-11 min-w-11 place-items-center rounded-full transition hover:-translate-y-0.5 active:scale-95"><img src={litterBoxIcon} alt="" className={darkMode ? "h-11 w-11 invert" : "h-11 w-11"} /></button>
-        <button type="button" aria-label="Show portfolio legend" aria-expanded={legendOpen} onClick={() => setLegendOpen((current) => { if (current) writeLegendSeen(window.localStorage); return !current; })} className="grid min-h-11 min-w-11 place-items-center rounded-full transition hover:-translate-y-0.5 active:scale-95"><img src={portfolioHelpIcon} alt="" className={darkMode ? "h-9 w-9 invert" : "h-9 w-9"} /></button>
         {/* Flag is 10px wider to the right (54×44 hit area, pinned left edge)
             so its glyph breathes without shifting the stack's rhythm. */}
         <button type="button" aria-label="Reset portfolio field" onPointerDown={(event) => event.stopPropagation()} onClick={resetViewport} className="relative grid min-h-11 min-w-11 w-[54px] place-items-center rounded-l-full transition hover:-translate-y-0.5 active:scale-95"><img src={flagIcon} alt="" className={darkMode ? "h-7 w-7 opacity-90 invert" : "h-7 w-7 opacity-90"} /></button>
         <button type="button" aria-label={isWorldFit ? "Restore normal world view" : "Show all kitties"} aria-pressed={isWorldFit} onPointerDown={(event) => event.stopPropagation()} onClick={toggleWorldFit} className="grid min-h-11 min-w-11 place-items-center rounded-full transition hover:-translate-y-0.5 active:scale-95"><img src={broomIcon} alt="" className={darkMode ? "h-7 w-7 opacity-90 invert" : "h-7 w-7 opacity-90"} /></button>
         <button type="button" aria-label="Toggle dark mode" aria-pressed={darkMode} onPointerDown={(event) => event.stopPropagation()} onClick={() => setDarkMode((current) => !current)} className="grid min-h-11 min-w-11 place-items-center rounded-full transition hover:-translate-y-0.5 active:scale-95"><img src={darkModeIcon} alt="" className={darkMode ? "h-9 w-9 invert" : "h-9 w-9"} /></button>
+        <button type="button" aria-label="Show portfolio legend" aria-expanded={legendOpen} onClick={() => setLegendOpen((current) => { if (current) writeLegendSeen(window.localStorage); return !current; })} className="grid min-h-11 min-w-11 place-items-center rounded-full transition hover:-translate-y-0.5 active:scale-95"><img src={portfolioHelpIcon} alt="" className={darkMode ? "h-9 w-9 invert" : "h-9 w-9"} /></button>
       </div>
       {legendOpen && <PortfolioLegend darkMode={darkMode} visualLens={visualLens} onClose={() => { setLegendOpen(false); writeLegendSeen(window.localStorage); }} onOpen={() => setSelectedId(null)} />}
       {records.length === 0 && <div className="fixed inset-0 z-[55] flex flex-col items-center justify-center" onDragOver={(event) => { event.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={(event) => { event.preventDefault(); setDragOver(false); importFile(event.dataTransfer.files[0]); }}><label className="flex cursor-pointer flex-col items-center gap-6" onDragOver={(event) => { event.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={(event) => { event.preventDefault(); setDragOver(false); importFile(event.dataTransfer.files[0]); }}><div className="transition-transform duration-200" style={{ transform: dragOver ? "scale(1.08)" : "scale(1)" }}><PortfolioKittySvg stroke={dragOver ? "#D8AE37" : darkMode ? "#a6c2cc" : "#ff3b3b"} fill={dragOver ? "#D8AE37" : "transparent"} fillOpacity={dragOver ? 0.08 : 0} strokeWidth={dragOver ? 3 : 2} className="h-48 w-48" /></div><div className="text-center"><p className={darkMode ? "font-serif text-2xl text-stone-100" : "font-serif text-2xl text-stone-900"}>{dragOver ? "Release to load your portfolio" : "Drop your portfolio.csv here"}</p><p className={darkMode ? "mt-2 font-mono text-[10px] tracking-[.12em] text-stone-400" : "mt-2 font-mono text-[10px] tracking-[.12em] text-stone-400"}>or click to browse · columns: company · buy_qty · avg_price · current_price · txn_date</p></div><input type="file" accept=".csv,text/csv" className="sr-only" onChange={(event) => importFile(event.target.files?.[0])} /></label>{uploadNotice && <p className={uploadNotice.kind === "error" ? darkMode ? "mt-6 font-mono text-[10px] text-[#ff6b6b]" : "mt-6 font-mono text-[10px] text-[#ff3b3b]" : darkMode ? "mt-6 font-mono text-[10px] text-[#4ade80]" : "mt-6 font-mono text-[10px] text-emerald-700"}>{uploadNotice.message}</p>}</div>}
