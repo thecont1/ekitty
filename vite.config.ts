@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
 import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
+import { isRegularDataFile, resolveDataFile } from "./server/dataPath";
 
 // =============================================================================
 // Manus Debug Collector - Vite Plugin
@@ -155,7 +156,7 @@ function vitePluginStorageProxy(): Plugin {
     name: "manus-storage-proxy",
     configureServer(server: ViteDevServer) {
       server.middlewares.use("/data", async (req, res) => {
-        const filename = req.url?.replace(/^\//, "");
+        const filename = req.url?.split(/[?#]/, 1)[0]?.replace(/^\/+/, "");
         if (!filename) {
           res.writeHead(400, { "Content-Type": "text/plain" });
           res.end("Missing storage key");
@@ -164,8 +165,14 @@ function vitePluginStorageProxy(): Plugin {
 
         // Local CSVs are the canonical privacy-preserving data source. The
         // legacy Forge proxy remains only as a fallback for missing files.
-        const localPath = path.join(PROJECT_ROOT, "client", "public", "data", filename);
-        if (fs.existsSync(localPath) && fs.statSync(localPath).isFile()) {
+        const dataRoot = path.resolve(PROJECT_ROOT, "client", "public", "data");
+        const localPath = resolveDataFile(dataRoot, req.url);
+        if (!localPath) {
+          res.writeHead(400, { "Content-Type": "text/plain" });
+          res.end("Invalid storage key");
+          return;
+        }
+        if (isRegularDataFile(localPath)) {
           res.writeHead(200, { "Content-Type": "text/csv; charset=utf-8", "Cache-Control": "no-store" });
           fs.createReadStream(localPath).pipe(res);
           return;
