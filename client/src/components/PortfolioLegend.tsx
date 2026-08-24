@@ -23,7 +23,7 @@ export default function PortfolioLegend({ darkMode, onClose, onOpen, visualLens,
   }, []);
 
   return (
-    <aside ref={panelRef} role="dialog" aria-modal="false" aria-labelledby="portfolio-legend-title" className={`fixed top-[7.3125rem] z-50 w-[min(300px,calc(100vw-24px))] rounded-xl border p-4 shadow-[0_18px_46px_-28px_rgba(41,37,36,.55)] ${panel}`} style={{ right: "calc(3rem + 54px + 2px)" }}>
+    <aside ref={panelRef} role="dialog" aria-modal="false" aria-labelledby="portfolio-legend-title" className={`fixed top-[8.0625rem] z-50 w-[min(300px,calc(100vw-24px))] rounded-xl border p-4 shadow-[0_18px_46px_-28px_rgba(41,37,36,.55)] ${panel}`} style={{ right: "calc(3rem + 54px - 8px)" }}>
       <div className="flex items-center justify-between gap-3">
         <h2 id="portfolio-legend-title" className="font-serif text-base">How to read the field</h2>
         <button type="button" onClick={onClose} aria-label="Close portfolio legend" className="grid min-h-11 min-w-11 place-items-center rounded-full"><X size={16} /></button>
