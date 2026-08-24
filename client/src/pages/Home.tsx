@@ -31,7 +31,7 @@ import {
 } from "@/lib/portfolioVisuals";
 import { getPortfolioOverlayTheme, type PortfolioOverlayTheme } from "@/lib/portfolioOverlayTheme";
 import { getPortfolioFooterClassName, PORTFOLIO_FOOTER_SEPARATOR_CLASS } from "@/lib/portfolioFooter";
-import { ZONE_MARGIN_PX, anchorOutsideZones, desiredSeparation, gravityBandNorms, kittyCollisionRadius, projectOutsideZones, separatePairwise, zoneRepulsion, type ExclusionZone } from "@/lib/kittyField";
+import { ZONE_MARGIN_PX, advanceFieldRest, anchorOutsideZones, desiredSeparation, gravityBandNorms, kittyCollisionRadius, projectOutsideZones, separatePairwise, settleFieldNodes, zoneRepulsion, type ExclusionZone, type FieldRestState } from "@/lib/kittyField";
 import { parsePortfolioResponse } from "@/lib/portfolioLoader";
 import { clampTimelinePan, legendShouldAutoOpen, writeLegendSeen } from "@/lib/uiState";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -248,9 +248,12 @@ export default function Home() {
   const [isWorldFit, setIsWorldFit] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0, visible: false });
   const [dataUpdatedAt, setDataUpdatedAt] = useState<string | null>(null);
+  const [fieldAwake, setFieldAwake] = useState(true);
   const [, repaint] = useState(0);
   const nodes = useRef<Record<string, SimNode>>({});
   const frame = useRef<number | null>(null);
+  const fieldRestRef = useRef<FieldRestState>({ elapsedMs: 0, quietMs: 0 });
+  const lastPaintRef = useRef(0);
   const litterboxRef = useRef<HTMLButtonElement | null>(null);
   const gravityRampRef = useRef<{ start: number | null; value: number }>({ start: null, value: gravityOn && viewMode === "holdings" ? 1 : 0 });
   const timelineScroller = useRef<HTMLDivElement | null>(null);
@@ -267,6 +270,11 @@ export default function Home() {
   // Reduced motion pauses the field without touching the user's own Freeze choice,
   // so their intent is preserved when the OS preference is toggled back off.
   const effectiveFrozen = frozen || reducedMotion;
+  const fieldIsMoving = fieldAwake && !effectiveFrozen && timelineGesture !== "pan";
+  const wakeField = useCallback(() => {
+    fieldRestRef.current = { elapsedMs: 0, quietMs: 0 };
+    setFieldAwake(true);
+  }, []);
   const overlayTheme = getPortfolioOverlayTheme(darkMode);
 
   useEffect(() => {
@@ -350,6 +358,7 @@ export default function Home() {
         header: { left: headerRect.left, top: headerRect.top, right: headerRect.right, bottom: headerRect.bottom },
         icons: { left: rightStripLeft, top: 0, right: iconRect.right, bottom: window.innerHeight },
       };
+      wakeField();
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -366,7 +375,7 @@ export default function Home() {
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", measure);
     };
-  }, [records.length, drawerOpen]);
+  }, [records.length, drawerOpen, wakeField]);
 
   const setCameraTransform = useCallback((x: number, y: number, scale = 1) => {
     camera.current.x = x;
@@ -448,8 +457,9 @@ export default function Home() {
     setIsWorldFit(false);
     settleCamera(minCanvasPanX, 0, 0.62, 1);
     Object.values(nodes.current).forEach((node) => { node.vx = 0; node.vy = 0; });
+    wakeField();
     repaint((value) => (value + 1) % 10_000);
-  }, [minCanvasPanX, monthMaximum, settleCamera, timeline.months.length]);
+  }, [minCanvasPanX, monthMaximum, settleCamera, timeline.months.length, wakeField]);
 
   const toggleWorldFit = useCallback(() => {
     if (isWorldFit) {
@@ -602,15 +612,36 @@ export default function Home() {
       nextNodes[point.id] = current ?? { x: padding + (seed % Math.max(120, physicsWidth - padding * 2)), y: padding + ((seed >>> 8) % Math.max(120, sceneSize.height - padding * 2)), vx: ((index % 3) - 1) * 0.04, vy: (((index + 1) % 3) - 1) * 0.04 };
     });
     nodes.current = nextNodes;
-  }, [physicsWidth, sceneSize, visiblePoints]);
+    wakeField();
+  }, [physicsWidth, sceneSize, visiblePoints, wakeField]);
+
+  // Physics-affecting controls/layout changes start a bounded settling burst.
+  // Once the burst sleeps, no RAF is scheduled until one of these changes or
+  // the user interacts with the field again.
+  useEffect(() => {
+    wakeField();
+  }, [drawerOpen, gravityOn, repulsion, selectedId, taxFilter, viewMode, visualLens, wakeField]);
 
   useEffect(() => {
+    if (!effectiveFrozen) {
+      wakeField();
+      return;
+    }
+    settleFieldNodes(Object.values(nodes.current));
+    setFieldAwake(false);
+    repaint((value) => (value + 1) % 10_000);
+  }, [effectiveFrozen, wakeField]);
+
+  useEffect(() => {
+    if (!fieldIsMoving) return;
     let last = performance.now();
     const tick = (time: number) => {
-      const delta = Math.min(1.4, (time - last) / 16.67);
+      const elapsedMs = Math.min(50, Math.max(0, time - last));
+      const delta = Math.min(1.4, elapsedMs / 16.67);
       last = time;
-      if (!effectiveFrozen && timelineGesture !== "pan") {
+      {
         const nodeList = visiblePoints.map(({ point, size }, index) => ({ node: nodes.current[point.id], point, size, index })).filter((entry) => entry.node);
+        const previousPositions = nodeList.map(({ node }) => ({ x: node.x, y: node.y }));
         // Gravity (Group view only): heavier holdings settle toward lower
         // bands while smaller ones float just under the header no-go zone.
         // The band pull eases in over ~700ms via the gravityBlend ramp so
@@ -736,13 +767,26 @@ export default function Home() {
             node.y = py2;
           });
         }
-        repaint((value) => (value + 1) % 10_000);
+        const maximumStep = nodeList.reduce((maximum, { node }, index) => Math.max(maximum, Math.hypot(node.x - previousPositions[index].x, node.y - previousPositions[index].y)), 0);
+        fieldRestRef.current = advanceFieldRest(fieldRestRef.current, elapsedMs, maximumStep);
+        if (fieldRestRef.current.sleeping) {
+          settleFieldNodes(nodeList.map(({ node }) => node));
+          repaint((value) => (value + 1) % 10_000);
+          setFieldAwake(false);
+          return;
+        }
+        // Render at 30fps while active. Physics can integrate at display rate,
+        // but React should not reconcile 80 glyph trees 60 times per second.
+        if (time - lastPaintRef.current >= 33) {
+          lastPaintRef.current = time;
+          repaint((value) => (value + 1) % 10_000);
+        }
       }
       frame.current = requestAnimationFrame(tick);
     };
     frame.current = requestAnimationFrame(tick);
     return () => { if (frame.current) cancelAnimationFrame(frame.current); };
-  }, [effectiveFrozen, gravityNorms, gravityOn, physicsWidth, pnlPosition, pnlScaleMargin, repulsion, sceneSize, selectedId, timeline, timelineGesture, topKittyMargin, transactionLayoutHeight, transactionStripWidth, viewMode, virtualCanvasWidth, visiblePoints]);
+  }, [fieldIsMoving, gravityNorms, gravityOn, physicsWidth, pnlPosition, pnlScaleMargin, repulsion, sceneSize, selectedId, timeline, topKittyMargin, transactionLayoutHeight, transactionStripWidth, viewMode, virtualCanvasWidth, visiblePoints]);
 
   const importFile = useCallback((file?: File) => {
     if (!file) return;
@@ -790,12 +834,12 @@ export default function Home() {
       {viewMode === "transactions" && timelinePanOffset < -1 && <button type="button" title="Drag to see older transactions" aria-label="Earlier months. Drag to see older transactions." onClick={() => panTimelinePage("earlier")} className="fixed left-2 top-1/2 z-40 flex min-h-11 items-center gap-1 rounded-full bg-white/90 px-2 font-mono text-[9px] text-stone-700 opacity-60 shadow-sm transition hover:opacity-100"><ChevronLeft size={20} /> older</button>}
       {viewMode === "transactions" && timelinePanOffset > minCanvasPanX + 1 && <button type="button" title="Drag to see newer transactions" aria-label="Later months. Drag to see newer transactions." onClick={() => panTimelinePage("later")} className="fixed right-[4.5rem] top-1/2 z-40 flex min-h-11 items-center gap-1 rounded-full bg-white/90 px-2 font-mono text-[9px] text-stone-700 opacity-60 shadow-sm transition hover:opacity-100">newer <ChevronRight size={20} /></button>}
       {records.length > 0 && <div className="fixed bottom-11 left-1/2 z-40 -translate-x-1/2"><input aria-label="Find a company" value={companyQuery} onChange={(event) => setCompanyQuery(event.target.value)} onPointerDown={(event) => event.stopPropagation()} className={darkMode ? "h-11 w-[min(348px,calc(100vw-32px))] rounded-full border border-[#49636a] bg-[#142022] px-4 font-mono text-[10px] text-stone-100 shadow-[0_6px_18px_-12px_rgba(0,0,0,.8)] outline-none placeholder:text-stone-400 focus:border-[#D8AE37]" : "h-11 w-[min(348px,calc(100vw-32px))] rounded-full border border-stone-400 bg-white px-4 font-mono text-[10px] text-stone-700 shadow-[0_6px_18px_-12px_rgba(41,37,36,.28)] outline-none placeholder:text-stone-500 focus:border-[#D8AE37]"} placeholder="look what the cat brought in" /></div>}
-      <section ref={kittyWorld} aria-label="Portfolio kitty field" className={viewMode === "transactions" ? "relative left-0 top-0 z-10 mx-auto touch-none" : "relative left-0 top-0 z-10 mx-auto touch-pan-y"} style={{ width: virtualCanvasWidth, height: virtualCanvasHeight, cursor: MOUSE_CURSOR }} onWheel={scrollTimeline} onPointerDown={(event) => { const nextPosition = { x: event.clientX, y: event.clientY }; setMousePosition({ ...nextPosition, visible: true }); beginTimelineDrag(event); }} onPointerMove={handleFieldPointerMove} onPointerEnter={(event) => { const nextPosition = { x: event.clientX, y: event.clientY }; setMousePosition({ ...nextPosition, visible: true }); }} onPointerLeave={() => { setMousePosition((current) => ({ ...current, visible: false })); }} onPointerUp={endTimelineDrag} onPointerCancel={endTimelineDrag}>
+      <section ref={kittyWorld} aria-label="Portfolio kitty field" data-field-motion={fieldIsMoving ? "active" : "resting"} className={viewMode === "transactions" ? "relative left-0 top-0 z-10 mx-auto touch-none" : "relative left-0 top-0 z-10 mx-auto touch-pan-y"} style={{ width: virtualCanvasWidth, height: virtualCanvasHeight, cursor: MOUSE_CURSOR }} onWheel={scrollTimeline} onPointerDown={(event) => { wakeField(); const nextPosition = { x: event.clientX, y: event.clientY }; setMousePosition({ ...nextPosition, visible: true }); beginTimelineDrag(event); }} onPointerMove={handleFieldPointerMove} onPointerEnter={(event) => { const nextPosition = { x: event.clientX, y: event.clientY }; setMousePosition({ ...nextPosition, visible: true }); }} onPointerLeave={() => { setMousePosition((current) => ({ ...current, visible: false })); }} onPointerUp={endTimelineDrag} onPointerCancel={endTimelineDrag}>
         {visiblePoints.map((entry) => {
           const node = nodes.current[entry.point.id]; if (!node) return null;
           const searchMatch = !searchTerm || entry.point.company.toLocaleLowerCase().includes(searchTerm);
           const muted = (taxFilter === "highlight" && !entry.point.taxSensitive) || (viewMode === "transactions" && focusedCompany !== null && entry.point.company !== focusedCompany) || !searchMatch;
-          return <div key={entry.point.id} aria-hidden={searchTerm && !searchMatch ? "true" : undefined} className={muted ? "opacity-20 grayscale-[.32] transition-opacity duration-300" : "transition-opacity duration-300"} style={{ position: "absolute", left: node.x, top: node.y }}><CatGlyph {...entry} visualLens={visualLens} searchHidden={Boolean(searchTerm && !searchMatch)} searchTerm={searchTerm} searchMatch={searchMatch} showBadges={showPnlBadges} showHalos={showHalos} darkMode={darkMode} focused={viewMode === "transactions" ? focusedCompany === entry.point.company : selectedId === entry.point.id} frozen={effectiveFrozen} onHover={() => setHoveredId(entry.point.id)} onLeave={() => setHoveredId((current) => current === entry.point.id ? null : current)} onClick={() => { if (viewMode === "transactions") { setFocusedCompany((current) => current === entry.point.company ? null : entry.point.company); setSelectedId(null); setHoveredId(null); } else { setSelectedId(entry.point.id); setHoveredId(null); } }} /></div>;
+          return <div key={entry.point.id} aria-hidden={searchTerm && !searchMatch ? "true" : undefined} className={muted ? "opacity-20 grayscale-[.32] transition-opacity duration-300" : "transition-opacity duration-300"} style={{ position: "absolute", left: node.x, top: node.y }}><CatGlyph {...entry} visualLens={visualLens} searchHidden={Boolean(searchTerm && !searchMatch)} searchTerm={searchTerm} searchMatch={searchMatch} showBadges={showPnlBadges} showHalos={showHalos} darkMode={darkMode} focused={viewMode === "transactions" ? focusedCompany === entry.point.company : selectedId === entry.point.id} frozen={!fieldIsMoving} onHover={() => setHoveredId(entry.point.id)} onLeave={() => setHoveredId((current) => current === entry.point.id ? null : current)} onClick={() => { wakeField(); if (viewMode === "transactions") { setFocusedCompany((current) => current === entry.point.company ? null : entry.point.company); setSelectedId(null); setHoveredId(null); } else { setSelectedId(entry.point.id); setHoveredId(null); } }} /></div>;
         })}
       </section>
 

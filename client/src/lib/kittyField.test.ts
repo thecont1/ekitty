@@ -7,13 +7,18 @@ import {
   KITTY_HITBOX_WIDTH_RATIO,
   SEPARATION_FLOOR_PX,
   ZONE_MARGIN_PX,
+  FIELD_MAX_ACTIVE_MS,
+  FIELD_QUIET_MS,
+  advanceFieldRest,
   desiredSeparation,
   gravityBandNorms,
   kittyCollisionRadius,
   pairwiseClearance,
   separatePairwise,
+  settleFieldNodes,
   zoneRepulsion,
   type FieldNode,
+  type FieldRestState,
 } from "./kittyField";
 import { asHoldingPoints, parsePortfolioCsv } from "./portfolio";
 import { deriveHoldingVisuals } from "./portfolioVisuals";
@@ -45,6 +50,37 @@ describe("restored kitty linework", () => {
     // and strictly a function of both radii + spaciousness
     expect(pairwiseClearance(10, 10, 0)).toBeGreaterThanOrEqual(SEPARATION_FLOOR_PX);
     expect(pairwiseClearance(40, 40, 1)).toBeGreaterThan(pairwiseClearance(20, 20, 1));
+  });
+});
+
+describe("field sleep controller", () => {
+  const awake = (): FieldRestState => ({ elapsedMs: 0, quietMs: 0 });
+
+  it("sleeps only after motion stays below the visible threshold", () => {
+    let state = awake();
+    state = advanceFieldRest(state, 16, 0.2);
+    expect(state.quietMs).toBe(0);
+    state = advanceFieldRest(state, FIELD_QUIET_MS - 1, 0.01);
+    expect(state.sleeping).not.toBe(true);
+    state = advanceFieldRest(state, 1, 0.01);
+    expect(state.sleeping).toBe(true);
+  });
+
+  it("eventually sleeps even when competing constraints never converge", () => {
+    const state = advanceFieldRest(awake(), FIELD_MAX_ACTIVE_MS, 100);
+    expect(state.sleeping).toBe(true);
+  });
+
+  it("zeros residual velocity and snaps positions to stable device-independent pixels", () => {
+    const nodes: FieldNode[] = [
+      { x: 10.24, y: 20.74, vx: 0.4, vy: -0.3 },
+      { x: 100.51, y: 200.49, vx: -2, vy: 1 },
+    ];
+    settleFieldNodes(nodes);
+    expect(nodes).toEqual([
+      { x: 10, y: 21, vx: 0, vy: 0 },
+      { x: 101, y: 200, vx: 0, vy: 0 },
+    ]);
   });
 });
 

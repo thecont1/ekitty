@@ -5,6 +5,34 @@
 
 export type FieldNode = { x: number; y: number; vx: number; vy: number };
 export type ExclusionZone = { left: number; top: number; right: number; bottom: number };
+export type FieldRestState = { elapsedMs: number; quietMs: number; sleeping?: boolean };
+
+/** Stop after 7s even when dense constraints cannot reach mathematical equilibrium. */
+export const FIELD_MAX_ACTIVE_MS = 7_000;
+/** Require a sustained quiet window before sleeping; one calm frame is insufficient. */
+export const FIELD_QUIET_MS = 550;
+/** Largest per-frame node displacement (px) still considered visually quiet. */
+export const FIELD_QUIET_STEP_PX = 0.04;
+
+export function advanceFieldRest(state: FieldRestState, elapsedMs: number, maximumStepPx: number): FieldRestState {
+  const nextElapsedMs = state.elapsedMs + Math.max(0, elapsedMs);
+  const nextQuietMs = maximumStepPx <= FIELD_QUIET_STEP_PX ? state.quietMs + Math.max(0, elapsedMs) : 0;
+  return {
+    elapsedMs: nextElapsedMs,
+    quietMs: nextQuietMs,
+    sleeping: nextQuietMs >= FIELD_QUIET_MS || nextElapsedMs >= FIELD_MAX_ACTIVE_MS,
+  };
+}
+
+/** Remove residual kinetic/sub-pixel noise when the active simulation burst ends. */
+export function settleFieldNodes(nodes: FieldNode[]) {
+  nodes.forEach((node) => {
+    node.x = Math.round(node.x);
+    node.y = Math.round(node.y);
+    node.vx = 0;
+    node.vy = 0;
+  });
+}
 
 /**
  * Collision footprint ratio for the de-tailed glyph.
