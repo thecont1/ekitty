@@ -87,15 +87,17 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 }
 
 
+/* Mover ring: violet dashed orbit, distinct from every halo/halo colour.
+   Pulse breathes opacity and scales gently; dashes stay legible throughout. */
 @keyframes kitty-mover-pulse {
-  0%, 100% { opacity: .22; transform: scale(.96); }
-  50% { opacity: .7; transform: scale(1.04); }
+  0%, 100% { opacity: .45; transform: scale(.97); }
+  50% { opacity: .95; transform: scale(1.03); }
 }
 
-.kitty-mover-ring { animation: kitty-mover-pulse 1.8s ease-in-out infinite; }
+.kitty-mover-ring { animation: kitty-mover-pulse 2.4s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .kitty-mover-ring { animation: none !important; opacity: .55; }
+  .kitty-mover-ring { animation: none !important; opacity: .75; }
 }
 
 @media (pointer: coarse) {

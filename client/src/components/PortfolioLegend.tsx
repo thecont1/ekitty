@@ -35,6 +35,7 @@ export default function PortfolioLegend({ darkMode, onClose, onOpen, visualLens,
         <li>{copy.emphasis}</li>
         <li className="flex items-center gap-3"><span aria-hidden="true" className="ml-3 grid h-4 w-4 place-items-center rounded-full border border-stone-900 bg-white text-[9px] font-bold text-stone-900">±</span><span>plus/minus badge · profit/loss without relying on colour</span></li>
         <li className="flex items-center gap-3"><span aria-hidden="true" className="ml-3 h-4 w-4 rounded-full border-2 border-stone-900 bg-[#D8AE37]" /><span>330+ day loss · tax-loss eligible</span></li>
+        <li className="flex items-center gap-3"><span aria-hidden="true" className="ml-3 h-5 w-5 rounded-full border-2 border-dashed border-[#7c3aed] opacity-80" /><span>mover ring · daily movement of at least 2%</span></li>
       </ul>
     </aside>
   );

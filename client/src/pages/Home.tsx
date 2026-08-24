@@ -23,6 +23,8 @@ import {
   getKittyEmphasis,
   getKittyPigment,
   getKittyRadius,
+  MOVER_RING_COLOR_DARK,
+  MOVER_RING_COLOR_LIGHT,
   type EmphasisStyle,
   type PigmentStyle,
   type VisualLens,
@@ -66,10 +68,9 @@ const GRAVITY_EASE_MS = 700;
  * derives dayChange/dayChangePercent per lot and per holding — but the
  * shipped client/public/data/portfolio.csv has no such column, so
  * dayChangePercent is undefined for every point and the >=2% mover condition
- * can never fire. Until a live price feed supplies prev_close_price, the
- * ring would be dead weight visually indistinguishable from the focus halo,
- * so it is stubbed off here instead of rendering a lie. Flip this to true
- * once real day-change data flows.
+ * can never fire. The restyle is done (dashed violet orbit at inset -4%,
+ * outside every halo radius and palette family), so flipping this to true
+ * once real day-change data flows is all that remains.
  */
 // TODO(ekitty): enable when portfolio.csv gains prev_close_price data.
 const MOVER_RING_ENABLED = false;
@@ -115,7 +116,7 @@ function createTimeline(points: PortfolioPoint[]): Timeline {
   return { months, indexFor, hasDates: dated.length > 0 };
 }
 
-function CatGlyph({ point, size, stroke, pigment, emphasis, bobDuration, visualLens, focused, frozen, searchHidden, showBadges, onHover, onLeave, onClick }: VisiblePoint & { visualLens: VisualLens; focused: boolean; frozen: boolean; searchHidden: boolean; showBadges: boolean; onHover: () => void; onLeave: () => void; onClick: () => void }) {
+function CatGlyph({ point, size, stroke, pigment, emphasis, bobDuration, visualLens, focused, frozen, searchHidden, showBadges, darkMode, onHover, onLeave, onClick }: VisiblePoint & { visualLens: VisualLens; focused: boolean; frozen: boolean; searchHidden: boolean; showBadges: boolean; darkMode: boolean; onHover: () => void; onLeave: () => void; onClick: () => void }) {
   const variation = hash(point.id);
   const lean = (variation % 11) - 5;
   // decorative only — not derived from portfolio data
@@ -141,7 +142,7 @@ function CatGlyph({ point, size, stroke, pigment, emphasis, bobDuration, visualL
               badge above owns the bottom-right. Neither depends on whether the
               other renders, so they never compete for one slot or shift. */}
           {point.taxSensitive && <span aria-hidden="true" className="absolute left-[22%] top-[24%] h-[10%] min-h-[12px] w-[10%] min-w-[12px] rounded-full border-[1.25px] border-black bg-[#D8AE37] shadow-[0_0_0_1px_rgba(255,255,255,.65)]" />}
-          {isMover && <span aria-hidden="true" className="kitty-mover-ring absolute inset-[2%] rounded-full border-2 border-current opacity-50" />}
+          {isMover && <span aria-hidden="true" className="kitty-mover-ring absolute inset-[-4%] rounded-full border-[2.5px]" style={{ borderStyle: "dashed", borderColor: darkMode ? MOVER_RING_COLOR_DARK : MOVER_RING_COLOR_LIGHT }} />}
           {point.isETF && <span className="absolute left-[54%] top-[60%] rounded-sm border border-[#9AA5AA] bg-white/95 px-[7%] py-[2%] font-mono text-[7px] font-semibold tracking-[.08em] text-stone-700 shadow-[0_1px_3px_rgba(41,37,36,.12)]">ETF</span>}
         </span>
       </span>
@@ -701,7 +702,7 @@ export default function Home() {
           const node = nodes.current[entry.point.id]; if (!node) return null;
           const searchMatch = !searchTerm || entry.point.company.toLocaleLowerCase().includes(searchTerm);
           const muted = (taxFilter === "highlight" && !entry.point.taxSensitive) || (viewMode === "transactions" && focusedCompany !== null && entry.point.company !== focusedCompany) || !searchMatch;
-          return <div key={entry.point.id} aria-hidden={searchTerm && !searchMatch ? "true" : undefined} className={muted ? "opacity-20 grayscale-[.32] transition-opacity duration-300" : "transition-opacity duration-300"} style={{ position: "absolute", left: node.x, top: node.y }}><CatGlyph {...entry} visualLens={visualLens} searchHidden={Boolean(searchTerm && !searchMatch)} showBadges={showPnlBadges} focused={viewMode === "transactions" ? focusedCompany === entry.point.company || Boolean(searchTerm && searchMatch) : selectedId === entry.point.id} frozen={effectiveFrozen} onHover={() => setHoveredId(entry.point.id)} onLeave={() => setHoveredId((current) => current === entry.point.id ? null : current)} onClick={() => { if (viewMode === "transactions") { setFocusedCompany((current) => current === entry.point.company ? null : entry.point.company); setSelectedId(null); setHoveredId(null); } else { setSelectedId(entry.point.id); setHoveredId(null); } }} /></div>;
+          return <div key={entry.point.id} aria-hidden={searchTerm && !searchMatch ? "true" : undefined} className={muted ? "opacity-20 grayscale-[.32] transition-opacity duration-300" : "transition-opacity duration-300"} style={{ position: "absolute", left: node.x, top: node.y }}><CatGlyph {...entry} visualLens={visualLens} searchHidden={Boolean(searchTerm && !searchMatch)} showBadges={showPnlBadges} darkMode={darkMode} focused={viewMode === "transactions" ? focusedCompany === entry.point.company || Boolean(searchTerm && searchMatch) : selectedId === entry.point.id} frozen={effectiveFrozen} onHover={() => setHoveredId(entry.point.id)} onLeave={() => setHoveredId((current) => current === entry.point.id ? null : current)} onClick={() => { if (viewMode === "transactions") { setFocusedCompany((current) => current === entry.point.company ? null : entry.point.company); setSelectedId(null); setHoveredId(null); } else { setSelectedId(entry.point.id); setHoveredId(null); } }} /></div>;
         })}
       </section>
 

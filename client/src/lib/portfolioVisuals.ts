@@ -47,6 +47,14 @@ const LOSS_RED_DARK = "#ff6b6b";
 const GAIN_GREEN = "#17885b";
 const GAIN_GREEN_DARK = "#4ade80";
 
+/**
+ * Mover ring colour — deliberately outside every other palette family
+ * (loss reds, gain greens, tax gold #D8AE37, focus gold, shocking-pink
+ * cursor) so an active mover reads as itself without hover or click.
+ */
+export const MOVER_RING_COLOR_LIGHT = "#7c3aed";
+export const MOVER_RING_COLOR_DARK = "#a78bfa";
+
 export function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
