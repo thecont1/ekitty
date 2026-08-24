@@ -164,7 +164,7 @@ You must obtain a separate commercial license from the Licensor.
 To inquire about commercial licensing, contact:
 
 > Mahesh Shantaram
-> Email: (add preferred contact)
+> Email: ms@thecontrarian.in
 
 10. Governing Law
 -----------------
