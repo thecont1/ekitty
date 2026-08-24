@@ -69,6 +69,17 @@ export function normalizeSqrt(value: number, min: number, max: number) {
   return Math.sqrt(normalizeLinear(value, min, max));
 }
 
+export function normalizeLog(value: number, min: number, max: number) {
+  if (!Number.isFinite(value) || !Number.isFinite(min) || !Number.isFinite(max)) return 0;
+  if (max <= min) return 0.5;
+  const safe = (candidate: number) => Math.log10(Math.max(candidate, 1));
+  const logValue = safe(value);
+  const logMin = safe(min);
+  const logMax = safe(max);
+  if (logMax === logMin) return 0.5;
+  return clamp((logValue - logMin) / (logMax - logMin), 0, 1);
+}
+
 export function normalizeSigned(value: number, negativeExtreme: number, positiveExtreme: number) {
   if (!Number.isFinite(value)) return 0;
   if (value < 0) return negativeExtreme < 0 ? -clamp(value / negativeExtreme, 0, 1) : 0;
@@ -88,8 +99,8 @@ export function deriveHoldingVisuals(points: PortfolioPoint[], lens: VisualLens)
   const impactValues = raw.map(({ impactRaw }) => impactRaw);
   const negativeExtreme = Math.min(0, ...raw.map(({ colorRaw }) => colorRaw));
   const positiveExtreme = Math.max(0, ...raw.map(({ colorRaw }) => colorRaw));
-  const sizeMin = Math.min(...sizeValues, 0);
-  const sizeMax = Math.max(...sizeValues, 0);
+  const sizeMin = sizeValues.length ? Math.min(...sizeValues) : 0;
+  const sizeMax = sizeValues.length ? Math.max(...sizeValues) : 0;
   const impactMin = Math.min(...impactValues, 0);
   const impactMax = Math.max(...impactValues, 0);
 
@@ -104,7 +115,7 @@ export function deriveHoldingVisuals(points: PortfolioPoint[], lens: VisualLens)
       sizeRaw,
       colorRaw,
       impactRaw,
-      sizeNorm: normalizeSqrt(sizeRaw, sizeMin, sizeMax),
+      sizeNorm: normalizeLog(sizeRaw, sizeMin, sizeMax),
       colorNorm: normalizeSigned(colorRaw, negativeExtreme, positiveExtreme),
       impactNorm: normalizeSqrt(impactRaw, impactMin, impactMax),
     },

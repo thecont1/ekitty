@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { parsePortfolioCsv } from "./portfolio";
 import {
   derivePortfolioModel,
   getKittyEmphasis,
   getKittyPigment,
   getKittyRadius,
   normalizeLinear,
+  normalizeLog,
   normalizeSigned,
   normalizeSqrt,
   type PortfolioLot,
@@ -24,6 +29,17 @@ describe("normalization helpers", () => {
     expect(normalizeLinear(12, 0, 10)).toBe(1);
     expect(normalizeLinear(5, 5, 5)).toBe(0.5);
     expect(normalizeSqrt(25, 0, 100)).toBe(0.5);
+  });
+
+  it("log normalization spreads the mid-pack and clamps extremes", () => {
+    expect(normalizeLog(100_000_000, 1, 100_000_000)).toBeCloseTo(1, 5);
+    expect(normalizeLog(1, 1, 100_000_000)).toBeCloseTo(0, 5);
+    expect(normalizeLog(0, 1, 100_000_000)).toBe(0);
+    expect(normalizeLog(Number.NaN, 1, 100)).toBe(0);
+    expect(normalizeLog(5, 5, 5)).toBe(0.5);
+
+    const norms = [1_000, 5_000, 25_000, 125_000, 625_000].map((value) => normalizeLog(value, 1_000, 100_000_000));
+    expect(Math.max(...norms) - Math.min(...norms)).toBeGreaterThan(0.4);
   });
 
   it("normalizes signed values around zero with asymmetric extremes", () => {
@@ -67,6 +83,24 @@ describe("derived portfolio visual model", () => {
     expect(qualityOla.visuals).toMatchObject({ sizeRaw: 14_000, colorRaw: -25, impactRaw: 3_500 });
     expect(riskOla.visuals).toMatchObject({ sizeRaw: 3_500, colorRaw: -25, impactRaw: 14_000 });
     for (const metric of Object.values(impactOla.visuals)) expect(Number.isFinite(metric)).toBe(true);
+  });
+
+  it("uses log size normalization for the real portfolio while retaining square-root impact", () => {
+    const csvPath = join(dirname(fileURLToPath(import.meta.url)), "../../public/data/portfolio.csv");
+    const records = parsePortfolioCsv(readFileSync(csvPath, "utf8")).records;
+    const holdings = derivePortfolioModel(records, "portfolio-impact").holdings;
+    const sortedByInvested = [...holdings].sort((left, right) => left.visuals.sizeRaw - right.visuals.sizeRaw);
+
+    expect(sortedByInvested[0].visuals.sizeNorm).toBeCloseTo(0, 5);
+    expect(sortedByInvested[sortedByInvested.length - 1].visuals.sizeNorm).toBeCloseTo(1, 5);
+    expect(sortedByInvested[Math.floor(sortedByInvested.length / 2)].visuals.sizeNorm).toBeGreaterThan(0.3);
+
+    const impactValues = holdings.map((holding) => holding.visuals.impactRaw);
+    const impactMin = Math.min(...impactValues, 0);
+    const impactMax = Math.max(...impactValues, 0);
+    for (const holding of holdings) {
+      expect(holding.visuals.impactNorm).toBeCloseTo(normalizeSqrt(holding.visuals.impactRaw, impactMin, impactMax), 10);
+    }
   });
 
   it("makes larger rupee loss stronger in portfolio-impact and steeper percentage loss stronger in trade-quality", () => {
