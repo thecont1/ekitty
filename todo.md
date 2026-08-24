@@ -1,4 +1,4 @@
-- [x] Locate and inspect the supplied Manus Storage kitty SVG asset.
+- [x] Locate and inspect the supplied supplied kitty SVG asset.
 - [x] Confirm the portfolio contains shares and ETFs only, using the supplied transactions CSV.
 - [x] Extend the portfolio model with complete purchase-time support for the transaction chart.
 - [x] Implement absolute P&L percentile segmentation and #ff3b3b loss encoding.
@@ -65,7 +65,7 @@
 - [x] Stabilize kitty visibility during canvas panning and apply the supplied mouse SVG cursor.
 - [x] Make Reset return the workspace to the top-right world origin.
 - [x] Keep the transaction month dateline fixed at the viewport top while the canvas pans.
-- [x] Create an isolated branch for a focused GSAP camera migration and verify pan, reset, dateline, and kitty persistence in the Manus Browser.
+- [x] Create an isolated branch for a focused GSAP camera migration and verify pan, reset, dateline, and kitty persistence in the sandbox browser preview.
 - [x] Smoothly reset to the top-right origin.
 - [x] Expose a visible mouse cursor overlay.
 - [x] Protect a top margin beneath the frozen dateline.
