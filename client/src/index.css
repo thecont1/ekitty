@@ -58,7 +58,7 @@
 
 html, body, #root { min-height: 100%; margin: 0; }
 
-body { background: #fff; color: var(--foreground); font-family: "DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace; overflow: hidden; }
+body { background: #fff; color: var(--foreground); font-family: "DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace; overflow-x: hidden; }
 
 button, input, select { font: inherit; }
 
@@ -80,22 +80,24 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .kitty-range::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; border: 2px solid #fff; border-radius: 50%; background: #44403c; box-shadow: 0 1px 4px rgb(41 37 36 / .25); }
 .kitty-range::-moz-range-thumb { width: 12px; height: 12px; border: 2px solid #fff; border-radius: 50%; background: #44403c; box-shadow: 0 1px 4px rgb(41 37 36 / .25); }
 
-@keyframes kitty-bob { from { transform: translateY(-3px) rotate(-1.2deg); } to { transform: translateY(4px) rotate(1.2deg); } }
+@keyframes kitty-bob { from { transform: translateY(-1px) rotate(-0.4deg); } to { transform: translateY(2px) rotate(0.4deg); } }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
 
 
+/* Mover ring: violet dashed orbit, distinct from every halo/halo colour.
+   Pulse breathes opacity and scales gently; dashes stay legible throughout. */
 @keyframes kitty-mover-pulse {
-  0%, 100% { opacity: .22; transform: scale(.96); }
-  50% { opacity: .7; transform: scale(1.04); }
+  0%, 100% { opacity: .45; transform: scale(.97); }
+  50% { opacity: .95; transform: scale(1.03); }
 }
 
-.kitty-mover-ring { animation: kitty-mover-pulse 1.8s ease-in-out infinite; }
+.kitty-mover-ring { animation: kitty-mover-pulse 2.4s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .kitty-mover-ring { animation: none !important; opacity: .55; }
+  .kitty-mover-ring { animation: none !important; opacity: .75; }
 }
 
 @media (pointer: coarse) {

@@ -14,10 +14,12 @@ export default function PortfolioHeader({ stats, hasPortfolio, darkMode, onOpenP
   const pnlClass = positive
     ? darkMode ? "text-[#4ade80]" : "text-[#087548]"
     : darkMode ? "text-[#ff8a8a]" : "text-[#c52222]";
+  // Neutral ink for the invested amount — plain stone in either theme.
+  const investedClass = darkMode ? "text-stone-100" : "text-stone-900";
 
   return (
-    <header className={darkMode ? "fixed right-3 top-3 z-[60] w-[min(288px,calc(100vw-24px))] rounded-2xl bg-[#101617] px-3 py-2.5 text-stone-100" : "fixed right-3 top-3 z-[60] w-[min(288px,calc(100vw-24px))] rounded-2xl bg-[#faf9f5] px-3 py-2.5 text-stone-900"}>
-      <div className="flex items-center gap-1.5 pr-12">
+    <header id="ekitty-header" className={darkMode ? "fixed right-24 top-3 z-[60] w-[min(288px,calc(100vw-7rem))] rounded-2xl bg-[#101617] px-3 py-2.5 text-stone-100" : "fixed right-24 top-3 z-[60] w-[min(288px,calc(100vw-7rem))] rounded-2xl bg-[#faf9f5] px-3 py-2.5 text-stone-900"}>
+      <div className="flex items-center gap-1.5">
         <PortfolioKittySvg stroke={darkMode ? "#ff8a8a" : "#c52222"} fill="transparent" fillOpacity={0} strokeWidth={2.5} className="h-11 w-11 shrink-0" />
         <h1 className="font-serif text-[18px] font-medium leading-none tracking-tight">ekitty purrrtfolio</h1>
       </div>
@@ -25,12 +27,20 @@ export default function PortfolioHeader({ stats, hasPortfolio, darkMode, onOpenP
         <button
           type="button"
           onClick={onOpenPortfolio}
-          className="mt-1 flex min-h-11 w-full items-end justify-between gap-3 rounded-lg px-1 py-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D8AE37]"
-          aria-label={`Open portfolio Group view. Net unrealized ${positive ? "profit" : "loss"} ${formatCurrency(Math.abs(stats.totalUnrealizedPnl))}, ${Math.abs(stats.totalUnrealizedPnlPercent).toFixed(2)} percent.`}
+          className="mt-1.5 flex min-h-11 w-full flex-wrap items-baseline justify-center gap-x-2 gap-y-0.5 rounded-lg px-1 pb-1 pt-0.5 text-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D8AE37]"
+          aria-label={`Invested ${formatCurrency(stats.totalInvestedValue)}. Net unrealized ${positive ? "profit" : "loss"} ${formatCurrency(Math.abs(stats.totalUnrealizedPnl))}, ${Math.abs(stats.totalUnrealizedPnlPercent).toFixed(2)} percent.`}
         >
-          <span className={darkMode ? "font-mono text-[8px] uppercase tracking-[.18em] text-stone-400" : "font-mono text-[8px] uppercase tracking-[.18em] text-stone-600"}>Portfolio · net P&amp;L</span>
-          <span className={`whitespace-nowrap font-mono text-[12px] font-medium tabular-nums ${pnlClass}`}>
-            <span aria-hidden="true">{sign}</span>{formatCurrency(Math.abs(stats.totalUnrealizedPnl))} <span className="text-[10px]">({sign}{Math.abs(stats.totalUnrealizedPnlPercent).toFixed(2)}%)</span>
+          {/* The one line that matters: invested (neutral) + absolute P&L and
+              percentage (both colour-coded by sign), centred under the
+              logo + title. Tabular numerals keep the columns steady. */}
+          <span className={`whitespace-nowrap font-mono text-[15px] font-semibold leading-none tabular-nums ${investedClass}`}>
+            {formatCurrency(stats.totalInvestedValue)}
+          </span>
+          <span className={`whitespace-nowrap font-mono text-[13px] font-semibold leading-none tabular-nums ${pnlClass}`}>
+            {sign}{formatCurrency(Math.abs(stats.totalUnrealizedPnl))}
+          </span>
+          <span className={`whitespace-nowrap font-mono text-[12px] font-medium leading-none tabular-nums opacity-80 ${pnlClass}`}>
+            ({sign}{Math.abs(stats.totalUnrealizedPnlPercent).toFixed(2)}%)
           </span>
         </button>
       )}

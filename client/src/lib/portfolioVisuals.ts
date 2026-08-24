@@ -47,6 +47,14 @@ const LOSS_RED_DARK = "#ff6b6b";
 const GAIN_GREEN = "#17885b";
 const GAIN_GREEN_DARK = "#4ade80";
 
+/**
+ * Mover ring colour — deliberately outside every other palette family
+ * (loss reds, gain greens, tax gold #D8AE37, focus gold, shocking-pink
+ * cursor) so an active mover reads as itself without hover or click.
+ */
+export const MOVER_RING_COLOR_LIGHT = "#7c3aed";
+export const MOVER_RING_COLOR_DARK = "#a78bfa";
+
 export function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
@@ -59,6 +67,17 @@ export function normalizeLinear(value: number, min: number, max: number) {
 
 export function normalizeSqrt(value: number, min: number, max: number) {
   return Math.sqrt(normalizeLinear(value, min, max));
+}
+
+export function normalizeLog(value: number, min: number, max: number) {
+  if (!Number.isFinite(value) || !Number.isFinite(min) || !Number.isFinite(max)) return 0;
+  if (max <= min) return 0.5;
+  const safe = (candidate: number) => Math.log10(Math.max(candidate, 1));
+  const logValue = safe(value);
+  const logMin = safe(min);
+  const logMax = safe(max);
+  if (logMax === logMin) return 0.5;
+  return clamp((logValue - logMin) / (logMax - logMin), 0, 1);
 }
 
 export function normalizeSigned(value: number, negativeExtreme: number, positiveExtreme: number) {
@@ -80,8 +99,8 @@ export function deriveHoldingVisuals(points: PortfolioPoint[], lens: VisualLens)
   const impactValues = raw.map(({ impactRaw }) => impactRaw);
   const negativeExtreme = Math.min(0, ...raw.map(({ colorRaw }) => colorRaw));
   const positiveExtreme = Math.max(0, ...raw.map(({ colorRaw }) => colorRaw));
-  const sizeMin = Math.min(...sizeValues, 0);
-  const sizeMax = Math.max(...sizeValues, 0);
+  const sizeMin = sizeValues.length ? Math.min(...sizeValues) : 0;
+  const sizeMax = sizeValues.length ? Math.max(...sizeValues) : 0;
   const impactMin = Math.min(...impactValues, 0);
   const impactMax = Math.max(...impactValues, 0);
 
@@ -96,7 +115,7 @@ export function deriveHoldingVisuals(points: PortfolioPoint[], lens: VisualLens)
       sizeRaw,
       colorRaw,
       impactRaw,
-      sizeNorm: normalizeSqrt(sizeRaw, sizeMin, sizeMax),
+      sizeNorm: normalizeLog(sizeRaw, sizeMin, sizeMax),
       colorNorm: normalizeSigned(colorRaw, negativeExtreme, positiveExtreme),
       impactNorm: normalizeSqrt(impactRaw, impactMin, impactMax),
     },
