@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
 import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
-import { isRegularDataFile, resolveDataFile } from "./server/dataPath";
+import { readDataFile, resolveDataFile } from "./server/dataPath";
 
 // =============================================================================
 // Manus Debug Collector - Vite Plugin
@@ -172,9 +172,15 @@ function vitePluginStorageProxy(): Plugin {
           res.end("Invalid storage key");
           return;
         }
-        if (isRegularDataFile(localPath)) {
+        const localFile = await readDataFile(localPath);
+        if (localFile.status === "ok") {
           res.writeHead(200, { "Content-Type": "text/csv; charset=utf-8", "Cache-Control": "no-store" });
-          fs.createReadStream(localPath).pipe(res);
+          res.end(localFile.data);
+          return;
+        }
+        if (localFile.status === "invalid") {
+          res.writeHead(500, { "Content-Type": "text/plain", "Cache-Control": "no-store" });
+          res.end("Local data file could not be read completely");
           return;
         }
 

@@ -29,6 +29,7 @@ import {
 } from "@/lib/portfolioVisuals";
 import { getPortfolioOverlayTheme, type PortfolioOverlayTheme } from "@/lib/portfolioOverlayTheme";
 import { getPortfolioFooterClassName, PORTFOLIO_FOOTER_SEPARATOR_CLASS } from "@/lib/portfolioFooter";
+import { parsePortfolioResponse } from "@/lib/portfolioLoader";
 import { clampTimelinePan, legendShouldAutoOpen, writeLegendSeen } from "@/lib/uiState";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { gsap } from "gsap";
@@ -395,10 +396,13 @@ export default function Home() {
       const parsed = parsePortfolioCsv(stored);
       if (parsed.records.length) { setRecords(parsed.records); setDataUpdatedAt(new Date().toISOString()); return; }
     }
-    fetch(PORTFOLIO_CSV_URL).then(async (response) => ({ text: await response.text(), lastModified: response.headers.get("last-modified") })).then(({ text, lastModified }) => {
-      const parsed = parsePortfolioCsv(text);
-      if (parsed.records.length) { setRecords(parsed.records); setDataUpdatedAt(lastModified ?? new Date().toISOString()); }
-    }).catch(() => undefined);
+    fetch(PORTFOLIO_CSV_URL).then(parsePortfolioResponse).then(({ records: nextRecords, lastModified }) => {
+      setRecords(nextRecords);
+      setDataUpdatedAt(lastModified ?? new Date().toISOString());
+      setUploadNotice(null);
+    }).catch((error: unknown) => {
+      setUploadNotice({ kind: "error", message: error instanceof Error ? error.message : "Portfolio download failed." });
+    });
   }, []);
 
   useEffect(() => { loadPortfolioCsv(); }, [loadPortfolioCsv]);
@@ -487,6 +491,8 @@ export default function Home() {
       if (parsed.error) { setUploadNotice({ kind: "error", message: parsed.error }); return; }
       localStorage.setItem(PORTFOLIO_STORAGE_KEY, text);
       setRecords(parsed.records); setDataUpdatedAt(new Date().toISOString()); setUploadNotice({ kind: "success", message: `${parsed.records.length} lots loaded into the field.` }); setSelectedId(null); setHoveredId(null); setTaxFilter("all");
+    }).catch(() => {
+      setUploadNotice({ kind: "error", message: "The portfolio file could not be read." });
     });
   }, []);
 
@@ -535,7 +541,7 @@ export default function Home() {
 
       <AnimatePresence>{viewMode === "holdings" && selected && focusNode && <motion.aside initial={{ opacity: 0, y: 12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.98 }} transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }} className={`fixed z-40 w-[min(336px,calc(100vw-28px))] overflow-hidden rounded-2xl border backdrop-blur ${overlayTheme.panel}`} style={{ left: clamp(focusOnRight ? focusNode.x + 76 : focusNode.x - 412, 14, sceneSize.width - 350), top: clamp(focusNode.y - 132, 14, sceneSize.height - 494) }}><div className={`flex items-start justify-between border-b px-5 py-4 ${overlayTheme.divider}`}><div><p className={`font-serif text-[19px] leading-5 ${overlayTheme.title}`}>{selected.company}</p><p className="mt-1 font-mono text-[9px] uppercase tracking-[.17em] text-stone-400">{selected.lots.length === 1 ? "Transaction lot" : `${selected.lots.length} transaction lots`}</p></div><button type="button" onClick={() => setSelectedId(null)} aria-label="Close details" className={`rounded-full p-1 transition ${overlayTheme.closeButton}`}><X size={16} /></button></div><div className={`grid grid-cols-2 gap-x-5 border-b px-5 py-3 ${overlayTheme.divider}`}><MetricRow label="Quantity" value={selected.qty.toLocaleString("en-IN")} theme={overlayTheme} /><MetricRow label="Avg. buy" value={formatPrice(selected.avgPrice)} theme={overlayTheme} /><MetricRow label="Current" value={formatPrice(selected.currentPrice)} theme={overlayTheme} /><MetricRow label="Unrealized P&L" value={`${selected.pnl >= 0 ? "+" : ""}${formatCurrency(selected.pnl)}`} theme={overlayTheme} /></div><div className="max-h-48 overflow-y-auto px-5 py-3"><p className={`mb-2 font-mono text-[9px] uppercase tracking-[.18em] ${overlayTheme.muted}`}>Lot breakdown</p>{selected.lots.map((lot) => { const lotPnl = lot.buy_qty * (lot.current_price - lot.avg_price); const days = ageInDays(lot.buy_date); const completedYears = Math.floor((days ?? 0) / 365); return <div key={lot.id} className={`grid grid-cols-[1fr_auto] gap-2 border-t py-2 first:border-t-0 ${overlayTheme.divider}`}><div><p className={`font-mono text-[10px] ${overlayTheme.lotText}`}>{lot.buy_qty} × {formatPrice(lot.avg_price)}</p><p className={`font-mono text-[9px] ${overlayTheme.muted}`}>{formatTransactionDate(lot.buy_date)}{days ? ` · ${days}d` : ""}{completedYears ? ` · ${completedYears}y complete` : ""}</p></div><span className={`self-center font-mono text-[10px] ${lotPnl >= 0 ? overlayTheme.profit : overlayTheme.loss}`}>{lotPnl >= 0 ? "+" : ""}{formatCurrency(lotPnl)}</span></div>; })}</div>{selected.taxSensitive && <div className={`flex items-center gap-2 border-t px-5 py-3 font-mono text-[10px] ${overlayTheme.taxNotice}`}><Sparkles size={13} /> Loss lot near/over the 365-day threshold.</div>}</motion.aside>}</AnimatePresence>
 
-      <PortfolioDrawer open={drawerOpen} onOpenChange={setDrawerOpen} viewMode={viewMode} setViewMode={(mode) => { setViewMode(mode); setSelectedId(null); }} visualLens={visualLens} setVisualLens={setVisualLens} taxFilter={taxFilter} setTaxFilter={(filter) => { setTaxFilter(filter); setSelectedId(null); }} showEtfs={showEtfs} setShowEtfs={setShowEtfs} darkMode={darkMode} etfLotCount={etfLotCount} frozen={frozen} setFrozen={setFrozen} reducedMotion={reducedMotion} repulsion={repulsion} setRepulsion={setRepulsion} onImportFile={importFile} uploadNotice={uploadNotice} hasDates={timeline.hasDates} onRestore={() => { localStorage.removeItem(PORTFOLIO_STORAGE_KEY); setUploadNotice(null); setSelectedId(null); setHoveredId(null); resetViewport(); setRecords([]); fetch(PORTFOLIO_CSV_URL).then(async (response) => ({ text: await response.text(), lastModified: response.headers.get("last-modified") })).then(({ text, lastModified }) => { const parsed = parsePortfolioCsv(text); if (parsed.records.length) { setRecords(parsed.records); setDataUpdatedAt(lastModified ?? new Date().toISOString()); } }).catch(() => undefined); }} visibleKittyCount={visiblePoints.length} loadedLotCount={eligibleRecords.length} />
+      <PortfolioDrawer open={drawerOpen} onOpenChange={setDrawerOpen} viewMode={viewMode} setViewMode={(mode) => { setViewMode(mode); setSelectedId(null); }} visualLens={visualLens} setVisualLens={setVisualLens} taxFilter={taxFilter} setTaxFilter={(filter) => { setTaxFilter(filter); setSelectedId(null); }} showEtfs={showEtfs} setShowEtfs={setShowEtfs} darkMode={darkMode} etfLotCount={etfLotCount} frozen={frozen} setFrozen={setFrozen} reducedMotion={reducedMotion} repulsion={repulsion} setRepulsion={setRepulsion} onImportFile={importFile} uploadNotice={uploadNotice} hasDates={timeline.hasDates} onRestore={() => { setUploadNotice(null); fetch(PORTFOLIO_CSV_URL).then(parsePortfolioResponse).then(({ records: nextRecords, lastModified }) => { localStorage.removeItem(PORTFOLIO_STORAGE_KEY); setRecords(nextRecords); setDataUpdatedAt(lastModified ?? new Date().toISOString()); setUploadNotice({ kind: "success", message: `${nextRecords.length} lots reloaded from portfolio.csv.` }); setSelectedId(null); setHoveredId(null); resetViewport(); }).catch((error: unknown) => { setUploadNotice({ kind: "error", message: error instanceof Error ? error.message : "Portfolio download failed." }); }); }} visibleKittyCount={visiblePoints.length} loadedLotCount={eligibleRecords.length} />
       <div className={getPortfolioFooterClassName(darkMode)}><span>Data updated {dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</span><span aria-hidden="true" className={PORTFOLIO_FOOTER_SEPARATOR_CLASS}>·</span><a href="https://thecontrarian.in" target="_blank" rel="noreferrer" className={darkMode ? "transition hover:text-stone-200" : "transition hover:text-stone-800"}>© 2026 Mahesh Shantaram / thecontrarian.in</a></div>
     </main>
   );

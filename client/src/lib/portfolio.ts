@@ -47,19 +47,21 @@ export type PortfolioStats = {
   companyDeltas: PortfolioPoint[];
 };
 
-const CLEAN_NUMBER = /[^0-9.-]/g;
+const FORMATTED_NUMBER = /^[+-]?(?:₹|Rs\.?\s*)?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$/i;
 
 function parseCellNumber(value: string | undefined) {
-  const cleaned = (value ?? "").replace(CLEAN_NUMBER, "");
-  if (!cleaned) return NaN;
+  const raw = (value ?? "").trim();
+  if (!raw || !FORMATTED_NUMBER.test(raw)) return NaN;
+  const cleaned = raw.replace(/^(?:₹|Rs\.?\s*)/i, "").replace(/,/g, "");
   const number = Number(cleaned);
   return Number.isFinite(number) ? number : NaN;
 }
 
-function parseCsvLine(line: string) {
+function parseCsvLine(line: string): { cells: string[]; complete: boolean; malformed: boolean } {
   const cells: string[] = [];
   let cell = "";
   let quoted = false;
+  let malformed = false;
 
   for (let index = 0; index < line.length; index += 1) {
     const character = line[index];
@@ -67,6 +69,11 @@ function parseCsvLine(line: string) {
       if (quoted && line[index + 1] === '"') {
         cell += '"';
         index += 1;
+      } else if (!quoted && cell.length > 0) {
+        malformed = true;
+      } else if (quoted && line[index + 1] !== "," && index + 1 < line.length) {
+        malformed = true;
+        quoted = false;
       } else {
         quoted = !quoted;
       }
@@ -78,7 +85,7 @@ function parseCsvLine(line: string) {
     }
   }
   cells.push(cell.trim());
-  return cells;
+  return { cells, complete: !quoted, malformed };
 }
 
 function stableLotId(row: string[], index: number) {
@@ -114,8 +121,12 @@ function normaliseDateValue(value?: string) {
     const date = new Date(Number(year), Number(month) - 1, Number(day));
     return date.getFullYear() === Number(year) && date.getMonth() === Number(month) - 1 && date.getDate() === Number(day) ? raw : undefined;
   }
+  // Numeric-looking dates must match one of the complete forms above; this
+  // prevents partial values such as 2025-06- from rolling into another date.
+  if (/^[\d\s/.-]+$/.test(raw)) return undefined;
   const parsed = new Date(raw);
-  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString().slice(0, 10);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
 }
 
 function inferEtf(company: string, instrument?: string) {
@@ -126,7 +137,10 @@ export function parsePortfolioCsv(text: string): { records: PortfolioLot[]; erro
   const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter((line) => line.trim());
   if (lines.length < 2) return { records: [], error: "The file needs a header and at least one transaction." };
 
-  const headers = parseCsvLine(lines[0]).map(normaliseHeader);
+  const parsedHeader = parseCsvLine(lines[0]);
+  if (!parsedHeader.complete) return { records: [], error: "The header has an unclosed quoted field." };
+  if (parsedHeader.malformed) return { records: [], error: "The header has malformed quote placement." };
+  const headers = parsedHeader.cells.map(normaliseHeader);
   const companyColumn = findColumn(headers, ["company", "symbol", "name"]);
   const quantityColumn = findColumn(headers, ["buy_qty", "qty", "quantity", "shares"]);
   const averageColumn = findColumn(headers, ["avg_price", "buy_price", "average_price", "cost_price"]);
@@ -142,20 +156,35 @@ export function parsePortfolioCsv(text: string): { records: PortfolioLot[]; erro
     };
   }
 
-  const records = lines.slice(1).flatMap((line, index) => {
-    const row = parseCsvLine(line);
+  const records: PortfolioLot[] = [];
+  const dataRows = lines.slice(1);
+  for (let index = 0; index < dataRows.length; index += 1) {
+    const line = dataRows[index];
+    const rowNumber = index + 2;
+    const parsedRow = parseCsvLine(line);
+    if (!parsedRow.complete) return { records: [], error: `Row ${rowNumber} has an unclosed quoted field.` };
+    if (parsedRow.malformed) return { records: [], error: `Row ${rowNumber} has malformed quote placement.` };
+    const row = parsedRow.cells;
+    if (row.length !== headers.length) {
+      return { records: [], error: `Row ${rowNumber} has ${row.length} columns; expected ${headers.length}.` };
+    }
     const company = row[companyColumn]?.trim();
     const quantity = parseCellNumber(row[quantityColumn]);
     const average = parseCellNumber(row[averageColumn]);
     const current = parseCellNumber(row[currentColumn]);
     const previousClose = previousCloseColumn >= 0 ? parseCellNumber(row[previousCloseColumn]) : NaN;
-    const validDate = normaliseDateValue(dateColumn >= 0 ? row[dateColumn] : undefined);
+    const rawDate = dateColumn >= 0 ? row[dateColumn]?.trim() : undefined;
+    const validDate = normaliseDateValue(rawDate);
     const instrument = instrumentColumn >= 0 ? row[instrumentColumn] : undefined;
 
-    if (!company || !Number.isFinite(quantity) || !Number.isFinite(average) || !Number.isFinite(current)) return [];
+    if (!company) return { records: [], error: `Row ${rowNumber} is missing a company.` };
+    if (!Number.isFinite(quantity)) return { records: [], error: `Row ${rowNumber} has an invalid buy quantity.` };
+    if (!Number.isFinite(average)) return { records: [], error: `Row ${rowNumber} has an invalid average price.` };
+    if (!Number.isFinite(current)) return { records: [], error: `Row ${rowNumber} has an invalid current price.` };
+    if (rawDate && !validDate) return { records: [], error: `Row ${rowNumber} has an invalid buy date.` };
     const hasPreviousClose = Number.isFinite(previousClose) && previousClose > 0;
     const dayChange = hasPreviousClose ? current - previousClose : undefined;
-    return [{
+    records.push({
       id: stableLotId(row, index),
       company,
       buy_qty: quantity,
@@ -166,8 +195,8 @@ export function parsePortfolioCsv(text: string): { records: PortfolioLot[]; erro
       dayChangePercent: dayChange === undefined ? undefined : (dayChange / previousClose) * 100,
       buy_date: validDate,
       isETF: inferEtf(company, instrument),
-    }];
-  });
+    });
+  }
 
   return records.length ? { records } : { records: [], error: "No usable rows were found in this file." };
 }

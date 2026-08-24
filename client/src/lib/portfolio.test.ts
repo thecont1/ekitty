@@ -76,7 +76,91 @@ describe("parsePortfolioCsv", () => {
     );
 
     expect(parsed.records).toEqual([]);
-    expect(parsed.error).toBe("No usable rows were found in this file.");
+    expect(parsed.error).toBe("Row 2 has an invalid buy quantity.");
+  });
+
+  it("rejects the entire CSV when a later row is truncated", () => {
+    const parsed = parsePortfolioCsv([
+      "company,buy_qty,avg_price,current_price,buy_date",
+      "Alpha,2,100,120,2025-06-01",
+      "Whirlpool,3,1000,900,2025-06-",
+    ].join("\n"));
+
+    expect(parsed.records).toEqual([]);
+    expect(parsed.error).toBe("Row 3 has an invalid buy date.");
+  });
+
+  it("rejects malformed rows instead of silently accepting a valid prefix", () => {
+    const invalidRequiredValue = parsePortfolioCsv([
+      "company,buy_qty,avg_price,current_price",
+      "Alpha,2,100,120",
+      "Beta,not-a-number,80,90",
+    ].join("\n"));
+    const numericPrefixWithJunk = parsePortfolioCsv([
+      "company,buy_qty,avg_price,current_price",
+      "Alpha,2,100,120",
+      "Beta,12oops,80,90",
+    ].join("\n"));
+    const malformedThousands = parsePortfolioCsv([
+      "company,buy_qty,avg_price,current_price",
+      "Alpha,2,100,120",
+      'Beta,"12,34",80,90',
+    ].join("\n"));
+    const missingCell = parsePortfolioCsv([
+      "company,buy_qty,avg_price,current_price",
+      "Alpha,2,100,120",
+      "Beta,1,80",
+    ].join("\n"));
+    const unclosedQuote = parsePortfolioCsv([
+      "company,buy_qty,avg_price,current_price",
+      "Alpha,2,100,120",
+      '"Beta,1,80,90',
+    ].join("\n"));
+    const strayQuote = parsePortfolioCsv([
+      "company,buy_qty,avg_price,current_price",
+      "Alpha,2,100,120",
+      'Be"ta,1,80,90',
+    ].join("\n"));
+    const textAfterClosingQuote = parsePortfolioCsv([
+      "company,buy_qty,avg_price,current_price",
+      "Alpha,2,100,120",
+      '"Beta"x,1,80,90',
+    ].join("\n"));
+
+    expect(invalidRequiredValue.error).toBe("Row 3 has an invalid buy quantity.");
+    expect(numericPrefixWithJunk.error).toBe("Row 3 has an invalid buy quantity.");
+    expect(malformedThousands.error).toBe("Row 3 has an invalid buy quantity.");
+    expect(missingCell.error).toBe("Row 3 has 3 columns; expected 4.");
+    expect(unclosedQuote.error).toBe("Row 3 has an unclosed quoted field.");
+    expect(strayQuote.error).toBe("Row 3 has malformed quote placement.");
+    expect(textAfterClosingQuote.error).toBe("Row 3 has malformed quote placement.");
+  });
+
+  it("accepts a complete final row without a trailing newline", () => {
+    const parsed = parsePortfolioCsv(
+      "company,buy_qty,avg_price,current_price,buy_date\nAlpha,2,100,120,2025-06-01",
+    );
+
+    expect(parsed.error).toBeUndefined();
+    expect(parsed.records).toHaveLength(1);
+  });
+
+  it("keeps accepting unambiguous human-readable dates", () => {
+    const parsed = parsePortfolioCsv(
+      'company,buy_qty,avg_price,current_price,buy_date\nAlpha,2,100,120,"Aug 1, 2025"',
+    );
+
+    expect(parsed.error).toBeUndefined();
+    expect(parsed.records[0].buy_date).toBe("2025-08-01");
+  });
+
+  it("keeps accepting signed and correctly grouped formatted numbers", () => {
+    const parsed = parsePortfolioCsv(
+      'company,buy_qty,avg_price,current_price\nAlpha,+2,"₹1,200.50","Rs. 1,300"',
+    );
+
+    expect(parsed.error).toBeUndefined();
+    expect(parsed.records[0]).toMatchObject({ buy_qty: 2, avg_price: 1200.5, current_price: 1300 });
   });
 
   it("creates stable lot IDs for identical CSV input", () => {

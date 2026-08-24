@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
-import { isRegularDataFile, resolveDataFile } from "../../../server/dataPath";
+import { hasExpectedByteLength, readDataFile, readRegularDataFile, resolveDataFile } from "../../../server/dataPath";
 
 const dataRoot = path.resolve("/tmp/ekitty/client/public/data");
 
@@ -27,7 +27,7 @@ describe("resolveDataFile", () => {
     expect(resolveDataFile(dataRoot, "/%E0%A4%A")).toBeUndefined();
   });
 
-  it("accepts regular files but rejects symlinks", () => {
+  it("reads regular files completely but rejects symlinks", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "ekitty-data-"));
     const regular = path.join(root, "portfolio.csv");
     const link = path.join(root, "linked.csv");
@@ -35,10 +35,40 @@ describe("resolveDataFile", () => {
     symlinkSync(regular, link);
 
     try {
-      expect(isRegularDataFile(regular)).toBe(true);
-      expect(isRegularDataFile(link)).toBe(false);
+      await expect(readRegularDataFile(regular)).resolves.toEqual(Buffer.from("company,buy_qty\n"));
+      await expect(readRegularDataFile(link)).resolves.toBeUndefined();
+      await expect(readDataFile(link)).resolves.toEqual({ status: "invalid" });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it("fails closed when a regular file cannot be fully read", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "ekitty-data-"));
+    const unreadable = path.join(root, "portfolio.csv");
+    writeFileSync(unreadable, "company,buy_qty\n");
+    chmodSync(unreadable, 0);
+
+    try {
+      if (process.getuid?.() === 0) return;
+      await expect(readRegularDataFile(unreadable)).resolves.toBeUndefined();
+    } finally {
+      chmodSync(unreadable, 0o600);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("distinguishes missing files from local read failures for safe fallback", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "ekitty-data-"));
+    try {
+      await expect(readDataFile(path.join(root, "missing.csv"))).resolves.toEqual({ status: "missing" });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a completed buffer whose byte count differs from the opened file size", () => {
+    expect(hasExpectedByteLength(Buffer.from("partial"), 100)).toBe(false);
+    expect(hasExpectedByteLength(Buffer.from("complete"), 8)).toBe(true);
   });
 });
