@@ -4,6 +4,11 @@
  */
 
 export type FieldNode = { x: number; y: number; vx: number; vy: number };
+export type SettleBounds = {
+  width: number;
+  height: number;
+  radiusFor: (node: FieldNode, index: number) => number;
+};
 export type ExclusionZone = { left: number; top: number; right: number; bottom: number };
 export type FieldRestState = { elapsedMs: number; quietMs: number; sleeping?: boolean };
 
@@ -24,11 +29,21 @@ export function advanceFieldRest(state: FieldRestState, elapsedMs: number, maxim
   };
 }
 
-/** Remove residual kinetic/sub-pixel noise when the active simulation burst ends. */
-export function settleFieldNodes(nodes: FieldNode[]) {
-  nodes.forEach((node) => {
-    node.x = Math.round(node.x);
-    node.y = Math.round(node.y);
+/**
+ * Remove residual kinetic/sub-pixel noise when the active simulation burst
+ * ends. Bounds keep each kitty's collision footprint fully inside the canvas
+ * before freezing it.
+ */
+export function settleFieldNodes(nodes: FieldNode[], bounds: SettleBounds) {
+  nodes.forEach((node, index) => {
+    const radiusValue = bounds.radiusFor(node, index);
+    const radius = Number.isFinite(radiusValue) ? Math.max(0, radiusValue) : 0;
+    const minX = Math.min(radius, bounds.width / 2);
+    const maxX = Math.max(minX, bounds.width - minX);
+    const minY = Math.min(radius, bounds.height / 2);
+    const maxY = Math.max(minY, bounds.height - minY);
+    node.x = Math.max(minX, Math.min(maxX, Math.round(node.x)));
+    node.y = Math.max(minY, Math.min(maxY, Math.round(node.y)));
     node.vx = 0;
     node.vy = 0;
   });

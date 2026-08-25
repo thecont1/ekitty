@@ -76,7 +76,11 @@ describe("field sleep controller", () => {
       { x: 10.24, y: 20.74, vx: 0.4, vy: -0.3 },
       { x: 100.51, y: 200.49, vx: -2, vy: 1 },
     ];
-    settleFieldNodes(nodes);
+    settleFieldNodes(nodes, {
+      width: 1_000,
+      height: 1_000,
+      radiusFor: () => 0,
+    });
     expect(nodes).toEqual([
       { x: 10, y: 21, vx: 0, vy: 0 },
       { x: 101, y: 200, vx: 0, vy: 0 },

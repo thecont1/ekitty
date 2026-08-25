@@ -18,6 +18,7 @@ import {
   kittyCollisionRadius,
   projectOutsideZones,
   separatePairwise,
+  settleFieldNodes,
   zoneRepulsion,
   type ExclusionZone,
 } from "./kittyField";
@@ -125,6 +126,30 @@ describe("steady-state field (real portfolio.csv, gravity on)", () => {
       return distance < radius - 2 ? [`${ids[index]}: dist=${distance.toFixed(1)} < r=${radius.toFixed(1)}`] : [];
     });
   }
+
+  it("keeps every kitty fully inside the canvas when the field sleeps", () => {
+    const nodes: Sim[] = [
+      { x: -640.4, y: -3.6, vx: -1.2, vy: 2.4 },
+      { x: PHYSICS_WIDTH + 90.2, y: LAYOUT_HEIGHT + 70.8, vx: 3, vy: -4 },
+    ];
+    const radii = [kittyCollisionRadius(326), kittyCollisionRadius(440)];
+
+    settleFieldNodes(nodes, {
+      width: PHYSICS_WIDTH,
+      height: LAYOUT_HEIGHT,
+      radiusFor: (_node, index) => radii[index],
+    });
+
+    nodes.forEach((node, index) => {
+      const radius = radii[index];
+      expect(node.x).toBeGreaterThanOrEqual(radius);
+      expect(node.x).toBeLessThanOrEqual(PHYSICS_WIDTH - radius);
+      expect(node.y).toBeGreaterThanOrEqual(radius);
+      expect(node.y).toBeLessThanOrEqual(LAYOUT_HEIGHT - radius);
+      expect(node.vx).toBe(0);
+      expect(node.vy).toBe(0);
+    });
+  });
 
   it("settles clear of the wider drawer-open no-go zone", () => {
     expect(zoneViolations(simulate(4000, drawerOpenIconsZone), drawerOpenIconsZone)).toEqual([]);

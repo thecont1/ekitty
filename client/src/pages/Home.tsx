@@ -312,7 +312,9 @@ export default function Home() {
   const transactionWindowPoints = filteredTransactionPoints;
   const fieldPoints = useMemo(() => viewMode === "transactions" ? transactionWindowPoints : filteredPoints, [filteredPoints, transactionWindowPoints, viewMode]);
   const transactionStripWidth = (sceneSize.width * 3) / Math.max(monthMaximum, 1);
-  const virtualCanvasWidth = viewMode === "transactions" ? Math.max(sceneSize.width, timeline.months.length * transactionStripWidth) : Math.max(sceneSize.width * 1.4, 1_500);
+  // Group view must match the viewport exactly: it has no horizontal scroll or
+  // pan affordance, so any wider centered world creates unreachable side strips.
+  const virtualCanvasWidth = viewMode === "transactions" ? Math.max(sceneSize.width, timeline.months.length * transactionStripWidth) : sceneSize.width;
   const virtualCanvasHeight = viewMode === "transactions" ? Math.max(1_560, sceneSize.height * 2.25) : Math.max(1_320, sceneSize.height * 1.85);
   const minCanvasPanX = Math.min(0, sceneSize.width - virtualCanvasWidth);
   const physicsWidth = virtualCanvasWidth;
@@ -624,10 +626,17 @@ export default function Home() {
       wakeField();
       return;
     }
-    settleFieldNodes(Object.values(nodes.current));
+    const nodeList = visiblePoints
+      .map(({ point, size }) => ({ node: nodes.current[point.id], size }))
+      .filter((entry): entry is { node: SimNode; size: number } => Boolean(entry.node));
+    settleFieldNodes(nodeList.map(({ node }) => node), {
+      width: virtualCanvasWidth,
+      height: virtualCanvasHeight,
+      radiusFor: (_node, index) => kittyCollisionRadius(nodeList[index].size),
+    });
     setFieldAwake(false);
     repaint((value) => (value + 1) % 10_000);
-  }, [effectiveFrozen, wakeField]);
+  }, [effectiveFrozen, virtualCanvasHeight, virtualCanvasWidth, visiblePoints, wakeField]);
 
   useEffect(() => {
     if (!fieldIsMoving) return;
@@ -767,7 +776,11 @@ export default function Home() {
         const maximumStep = nodeList.reduce((maximum, { node }, index) => Math.max(maximum, Math.hypot(node.x - previousPositions[index].x, node.y - previousPositions[index].y)), 0);
         fieldRestRef.current = advanceFieldRest(fieldRestRef.current, elapsedMs, maximumStep);
         if (fieldRestRef.current.sleeping) {
-          settleFieldNodes(nodeList.map(({ node }) => node));
+          settleFieldNodes(nodeList.map(({ node }) => node), {
+            width: virtualCanvasWidth,
+            height: virtualCanvasHeight,
+            radiusFor: (_node, index) => kittyCollisionRadius(nodeList[index].size),
+          });
           repaint((value) => (value + 1) % 10_000);
           setFieldAwake(false);
           return;
