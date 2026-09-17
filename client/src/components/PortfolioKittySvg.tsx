@@ -3,7 +3,9 @@
  * line illustration while accepting data-driven stroke and body treatments.
  */
 
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import KittyCostumeLayers from "./KittyCostumeLayers";
+import type { CostumeId } from "@/lib/portfolioCostumes";
 
 type PortfolioKittySvgProps = {
   stroke: string;
@@ -11,9 +13,12 @@ type PortfolioKittySvgProps = {
   fillOpacity: number;
   strokeWidth: number;
   className?: string;
+  costumes?: readonly CostumeId[];
+  darkMode?: boolean;
+  children?: ReactNode;
 };
 
-export default function PortfolioKittySvg({ stroke, fill, fillOpacity, strokeWidth, className }: PortfolioKittySvgProps) {
+export default function PortfolioKittySvg({ stroke, fill, fillOpacity, strokeWidth, className, costumes = [], darkMode = false, children }: PortfolioKittySvgProps) {
   const variables = {
     "--cat-stroke-color": stroke,
     "--cat-stroke-width": strokeWidth,
@@ -47,6 +52,8 @@ export default function PortfolioKittySvg({ stroke, fill, fillOpacity, strokeWid
       <circle className="cat-fill" cx="88.84" cy="60.64" r="3" />
       <path className="cat-path" d="M51.72,47.64C55.2,42,60,37.56,70.68,32.24" />
       <path className="cat-path" d="M98.4,26.28A33.4,33.4,0,0,1,120,32.96" />
+      {costumes.length > 0 && <KittyCostumeLayers layers={costumes} darkMode={darkMode} />}
+      {children}
     </svg>
   );
 }
