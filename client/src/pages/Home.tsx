@@ -29,6 +29,9 @@ import {
   type PigmentStyle,
   type VisualLens,
 } from "@/lib/portfolioVisuals";
+import { COSTUME_LEGEND, deriveCostumeStates, type CostumeId } from "@/lib/portfolioCostumes";
+import { buildMrBunglesDigest } from "@/lib/mrBunglesDigest";
+import MrBungles from "@/components/MrBungles";
 import { getPortfolioOverlayTheme, type PortfolioOverlayTheme } from "@/lib/portfolioOverlayTheme";
 import { getPortfolioFooterClassName, PORTFOLIO_FOOTER_SEPARATOR_CLASS } from "@/lib/portfolioFooter";
 import { ZONE_MARGIN_PX, advanceFieldRest, anchorOutsideZones, desiredSeparation, gravityBandNorms, kittyCollisionRadius, projectOutsideZones, separatePairwise, settleFieldNodes, zoneRepulsion, type ExclusionZone, type FieldRestState } from "@/lib/kittyField";
@@ -57,6 +60,7 @@ const PORTFOLIO_CSV_URL = "/data/portfolio.csv";
 const PORTFOLIO_STORAGE_KEY = "ekitty-portfolio-csv";
 const BADGES_STORAGE_KEY = "ekitty-show-pnl-badges-v1";
 const HALOS_STORAGE_KEY = "ekitty-show-halos-v1";
+const COSTUMES_STORAGE_KEY = "ekitty-show-costumes-v1";
 const SHOCKING_PINK = "#ff1493";
 const MOUSE_CURSOR = "none";
 /** Gravity toggle ease-in/out window — organic settle, no snapping. */
@@ -165,7 +169,7 @@ function createTimeline(points: PortfolioPoint[]): Timeline {
   return { months, indexFor, hasDates: dated.length > 0 };
 }
 
-export function CatGlyph({ point, size, stroke, pigment, emphasis, bobDuration, visualLens, focused, frozen, searchHidden, searchTerm, searchMatch, showBadges, showHalos, darkMode, onHover, onLeave, onClick }: VisiblePoint & { visualLens: VisualLens; focused: boolean; frozen: boolean; searchHidden: boolean; searchTerm: string; searchMatch: boolean; showBadges: boolean; showHalos: boolean; darkMode: boolean; onHover: () => void; onLeave: () => void; onClick: () => void }) {
+export function CatGlyph({ point, size, stroke, pigment, emphasis, bobDuration, visualLens, focused, frozen, searchHidden, searchTerm, searchMatch, showBadges, showHalos, darkMode, costumes = [], onHover, onLeave, onClick }: VisiblePoint & { visualLens: VisualLens; focused: boolean; frozen: boolean; searchHidden: boolean; searchTerm: string; searchMatch: boolean; showBadges: boolean; showHalos: boolean; darkMode: boolean; costumes?: readonly CostumeId[]; onHover: () => void; onLeave: () => void; onClick: () => void }) {
   const variation = hash(point.id);
   const lean = (variation % 11) - 5;
   // decorative only — not derived from portfolio data
@@ -180,7 +184,7 @@ export function CatGlyph({ point, size, stroke, pigment, emphasis, bobDuration, 
     : "";
 
   return (
-    <button type="button" tabIndex={searchHidden ? -1 : 0} aria-label={`${point.company}: ${point.pnl >= 0 ? "profit" : "loss"} ${formatCurrency(Math.abs(point.pnl))}, ${Math.abs(point.pnlPercent).toFixed(1)} percent; active ${visualLens.replaceAll("-", " ")} lens${moverLabel}${point.isETF ? ", ETF" : ""}${point.taxSensitive ? ", tax-loss eligible" : ""}`} className="group absolute z-10 block origin-center border-0 bg-transparent p-0 outline-none focus-visible:z-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D8AE37]" style={{ width: size, height: size, transform: "translate(-50%, -50%)", cursor: MOUSE_CURSOR }} onPointerDown={(event) => event.stopPropagation()} onMouseEnter={onHover} onFocus={onHover} onMouseLeave={onLeave} onBlur={onLeave} onClick={onClick}>
+    <button type="button" tabIndex={searchHidden ? -1 : 0} data-point-id={point.id} aria-label={`${point.company}: ${point.pnl >= 0 ? "profit" : "loss"} ${formatCurrency(Math.abs(point.pnl))}, ${Math.abs(point.pnlPercent).toFixed(1)} percent; active ${visualLens.replaceAll("-", " ")} lens${moverLabel}${point.isETF ? ", ETF" : ""}${point.taxSensitive ? ", tax-loss eligible" : ""}${costumes.length ? `; costumes: ${costumes.map((id) => COSTUME_LEGEND[id].label).join(", ")}` : ""}`} className="group absolute z-10 block origin-center border-0 bg-transparent p-0 outline-none focus-visible:z-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D8AE37]" style={{ width: size, height: size, transform: "translate(-50%, -50%)", cursor: MOUSE_CURSOR }} onPointerDown={(event) => event.stopPropagation()} onMouseEnter={onHover} onFocus={onHover} onMouseLeave={onLeave} onBlur={onLeave} onClick={onClick}>
       <span className="relative block h-full w-full transition-transform duration-200 ease-out group-hover:scale-[1.055] group-focus-visible:scale-[1.055]" style={{ transform: `rotate(${lean}deg) skewX(${skew}deg) scale(${widthScale}, ${heightScale})` }}>
         <span className="relative block h-full w-full" style={bobStyle}>
           {/* data-ring="…" attributes are stable test hooks (see kittyField.test.ts):
@@ -189,13 +193,13 @@ export function CatGlyph({ point, size, stroke, pigment, emphasis, bobDuration, 
           {showHalos && emphasis.haloOpacity > 0 && <span aria-hidden="true" data-ring="emphasis" className="absolute inset-[3%] rounded-full border-current" style={{ borderStyle: point.pnl < 0 ? "dashed" : "solid", borderWidth: emphasis.haloWidth, opacity: emphasis.haloOpacity, color: pigment.ink }} />}
           {focused && <span aria-hidden="true" data-ring="focus" className="absolute inset-[5%] rounded-full border-[1.5px] border-[#D8AE37]" style={{ borderStyle: "solid" }} />}
           {searchMatch && searchTerm && <span aria-hidden="true" data-ring="search" className="absolute inset-[2%] rounded-full border-2 border-[#D8AE37] opacity-90" style={{ borderStyle: "dotted" }} />}
-          <PortfolioKittySvg stroke={pigment.ink} fill={pigment.fill} fillOpacity={pigment.fillOpacity} strokeWidth={stroke} className="block h-full w-full overflow-visible" />
+          <PortfolioKittySvg stroke={pigment.ink} fill={pigment.fill} fillOpacity={pigment.fillOpacity} strokeWidth={stroke} costumes={costumes} darkMode={darkMode} className="block h-full w-full overflow-visible" />
           {showBadges && <span aria-hidden="true" className="absolute bottom-[14%] right-[16%] grid h-[12%] min-h-[13px] w-[12%] min-w-[13px] place-items-center rounded-full border border-current bg-white/90 font-mono text-[9px] font-bold leading-none text-stone-800">{emphasis.symbol}</span>}
           {/* The tax-loss coin occupies a fixed collar slot while the +/−
               badge owns the bottom-right. Their presence is independent. */}
           {point.taxSensitive && <span aria-label="Tax-loss eligible (held 330+ days)" className="absolute left-[calc(44%-8px)] top-[54%] h-[10%] min-h-[12px] w-[10%] min-w-[12px] rounded-full border-[1.25px] border-black bg-[#D8AE37] shadow-[0_0_0_1px_rgba(255,255,255,.65)]" />}
           {isMover && <span aria-hidden="true" data-ring="mover" className="kitty-mover-ring absolute inset-[-4%] rounded-full border-[2.5px]" style={{ borderStyle: "dashed", borderColor: darkMode ? MOVER_RING_COLOR_DARK : MOVER_RING_COLOR_LIGHT }} />}
-          {point.isETF && <span aria-hidden="true" className="pointer-events-none absolute left-[60%] top-[76%] rounded-sm border border-[#9AA5AA] bg-white/95 px-[5%] py-[1.5%] font-mono text-[7px] font-semibold tracking-[.08em] text-stone-700 shadow-[0_1px_3px_rgba(41,37,36,.12)]">ETF</span>}
+          {point.isETF && !costumes.includes("basket") && <span aria-hidden="true" className="pointer-events-none absolute left-[60%] top-[76%] rounded-sm border border-[#9AA5AA] bg-white/95 px-[5%] py-[1.5%] font-mono text-[7px] font-semibold tracking-[.08em] text-stone-700 shadow-[0_1px_3px_rgba(41,37,36,.12)]">ETF</span>}
         </span>
       </span>
     </button>
@@ -230,6 +234,13 @@ export default function Home() {
     }
   });
   const [showHalos, setShowHalos] = useState(() => readShowHalos(window.localStorage));
+  const [showCostumes, setShowCostumes] = useState(() => {
+    try {
+      return window.localStorage.getItem(COSTUMES_STORAGE_KEY) !== "false";
+    } catch {
+      return true;
+    }
+  });
   const [showBadgesToast, setShowBadgesToast] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
@@ -300,6 +311,8 @@ export default function Home() {
   const portfolioStats = usePortfolioStats(eligibleRecords);
   const transactionPoints = useMemo(() => asTransactionPoints(eligibleRecords), [eligibleRecords]);
   const points = useMemo(() => viewMode === "holdings" ? asHoldingPoints(eligibleRecords) : transactionPoints, [eligibleRecords, transactionPoints, viewMode]);
+  const costumeLayersById = useMemo(() => new Map(points.map((point): [string, CostumeId[]] => [point.id, deriveCostumeStates(point, viewMode, points).layers])), [points, viewMode]);
+  const mrBunglesDigest = useMemo(() => buildMrBunglesDigest(points, viewMode, visualLens, { includesEtfs: showEtfs, taxFilter, query: companyQuery }), [points, viewMode, visualLens, showEtfs, taxFilter, companyQuery]);
   const filteredPoints = useMemo(() => taxFilter === "isolate" ? points.filter((point) => point.taxSensitive) : points, [points, taxFilter]);
   const timeline = useMemo(() => createTimeline(transactionPoints), [transactionPoints]);
   const monthMinimum = Math.min(6, timeline.months.length);
@@ -405,6 +418,22 @@ export default function Home() {
       },
     });
   }, [prefersReducedMotion, setCameraTransform]);
+
+  const focusMrBunglesTarget = useCallback((id: string) => {
+    const point = fieldPointsById.get(id);
+    const node = nodes.current[id];
+    if (!point || !node) return;
+    setFocusedCompany(null);
+    setSelectedId(id);
+    setHoveredId(null);
+    setLegendOpen(false);
+    setIsWorldFit(false);
+    const x = viewMode === "transactions" ? clamp(sceneSize.width * 0.45 - node.x, minCanvasPanX, 0) : 0;
+    const y = sceneSize.height * 0.42 + window.scrollY - node.y;
+    settleCamera(x, y, 0.36, 1);
+    const button = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-point-id]")).find(candidate => candidate.dataset.pointId === id);
+    button?.focus({ preventScroll: true });
+  }, [fieldPointsById, viewMode, sceneSize.width, sceneSize.height, minCanvasPanX, settleCamera]);
 
   const panTimelinePage = useCallback((direction: "earlier" | "later") => {
     setIsWorldFit(false);
@@ -601,6 +630,10 @@ export default function Home() {
   useEffect(() => {
     writeShowHalos(window.localStorage, showHalos);
   }, [showHalos]);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(COSTUMES_STORAGE_KEY, String(showCostumes)); } catch {}
+  }, [showCostumes]);
 
   useEffect(() => {
     const nextNodes: Record<string, SimNode> = {};
@@ -837,7 +870,7 @@ export default function Home() {
         <button type="button" aria-label="Toggle dark mode" aria-pressed={darkMode} onPointerDown={(event) => event.stopPropagation()} onClick={() => setDarkMode((current) => !current)} className="grid min-h-11 min-w-11 place-items-center rounded-full transition hover:-translate-y-0.5 active:scale-95"><img src={darkModeIcon} alt="" className={darkMode ? "h-9 w-9 invert" : "h-9 w-9"} /></button>
         <button type="button" aria-label="Show portfolio legend" aria-expanded={legendOpen} onClick={() => { if (legendOpen) { setLegendOpen(false); writeLegendSeen(window.localStorage); } else { setSelectedId(null); setLegendOpen(true); } }} className="grid min-h-11 min-w-11 place-items-center rounded-full transition hover:-translate-y-0.5 active:scale-95"><img src={portfolioHelpIcon} alt="" className={darkMode ? "h-9 w-9 invert" : "h-9 w-9"} /></button>
       </div>
-      {legendOpen && <PortfolioLegend darkMode={darkMode} visualLens={visualLens} moverRingEnabled={MOVER_RING_ENABLED} onClose={() => { setLegendOpen(false); writeLegendSeen(window.localStorage); }} />}
+      {legendOpen && <PortfolioLegend darkMode={darkMode} visualLens={visualLens} moverRingEnabled={MOVER_RING_ENABLED} viewMode={viewMode} showCostumes={showCostumes} onClose={() => { setLegendOpen(false); writeLegendSeen(window.localStorage); }} />}
       {records.length === 0 && <div className="fixed inset-0 z-[55] flex flex-col items-center justify-center" onDragOver={(event) => { event.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={(event) => { event.preventDefault(); setDragOver(false); importFile(event.dataTransfer.files[0]); }}><label className="flex cursor-pointer flex-col items-center gap-6" onDragOver={(event) => { event.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={(event) => { event.preventDefault(); setDragOver(false); importFile(event.dataTransfer.files[0]); }}><div className="transition-transform duration-200" style={{ transform: dragOver ? "scale(1.08)" : "scale(1)" }}><PortfolioKittySvg stroke={dragOver ? "#D8AE37" : darkMode ? "#a6c2cc" : "#ff3b3b"} fill={dragOver ? "#D8AE37" : "transparent"} fillOpacity={dragOver ? 0.08 : 0} strokeWidth={dragOver ? 3 : 2} className="h-48 w-48" /></div><div className="text-center"><p className={darkMode ? "font-serif text-2xl text-stone-100" : "font-serif text-2xl text-stone-900"}>{dragOver ? "Release to load your portfolio" : "Drop your portfolio.csv here"}</p><p className={darkMode ? "mt-2 font-mono text-[10px] tracking-[.12em] text-stone-400" : "mt-2 font-mono text-[10px] tracking-[.12em] text-stone-400"}>or click to browse · columns: company · buy_qty · avg_price · current_price · txn_date</p></div><input type="file" accept=".csv,text/csv" className="sr-only" onChange={(event) => importFile(event.target.files?.[0])} /></label>{uploadNotice && <p className={uploadNotice.kind === "error" ? darkMode ? "mt-6 font-mono text-[10px] text-[#ff6b6b]" : "mt-6 font-mono text-[10px] text-[#ff3b3b]" : darkMode ? "mt-6 font-mono text-[10px] text-[#4ade80]" : "mt-6 font-mono text-[10px] text-emerald-700"}>{uploadNotice.message}</p>}</div>}
       {viewMode === "transactions" && <div ref={gridWorld} aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-0 overflow-hidden" style={{ width: virtualCanvasWidth, height: virtualCanvasHeight }}>{pnlTicks.map((tick) => { const ratio = (tick + pnlBound) / (pnlBound * 2); return <div key={`grid-${tick}`} className={darkMode ? "absolute left-0 right-0 border-t border-[#20353b]/28" : "absolute left-0 right-0 border-t border-[#dbeef8]/34"} style={{ top: pnlScaleMargin + (1 - ratio) * (transactionLayoutHeight - pnlScaleMargin * 2) }} />; })}{timeline.months.map((month, index) => <div key={month} className={darkMode ? "absolute bottom-0 top-0 border-l border-[#284149]/42" : "absolute bottom-0 top-0 border-l border-[#edf7ff]/46"} style={{ left: index * transactionStripWidth }} />)}{elapsedYearGuides.map((guide) => { const index = timeline.months.indexOf(guide.serial); return <div key={`year-${guide.years}`} className="absolute bottom-0 top-0 w-[3px] bg-[#70b9e8] shadow-[0_0_0_1px_rgba(112,185,232,.14)]" style={{ left: index * transactionStripWidth }} />; })}</div>}
       {viewMode === "transactions" && <div aria-hidden="true" className={darkMode ? "pointer-events-none fixed inset-x-0 top-0 z-20 h-10 overflow-hidden bg-[#101617]/88 backdrop-blur-[2px]" : "pointer-events-none fixed inset-x-0 top-0 z-20 h-10 overflow-hidden bg-white/88 backdrop-blur-[2px]"}><div ref={datelineWorld} className="relative h-full" style={{ width: virtualCanvasWidth }}>{timeline.months.map((month, index) => index % 3 === 0 && <span key={`label-${month}`} className={darkMode ? "absolute top-3 hidden font-mono text-[9px] font-medium tracking-[.12em] text-[#a6c2cc] md:block" : "absolute top-3 hidden font-mono text-[9px] font-medium tracking-[.12em] text-[#61869d] md:block"} style={{ left: index * transactionStripWidth + 4 }}>{labelMonth(month)}</span>)}{elapsedYearGuides.map((guide) => { const index = timeline.months.indexOf(guide.serial); return <span key={`year-label-${guide.years}`} className="absolute top-7 font-mono text-[8px] tracking-[.12em] text-[#4096cf]" style={{ left: index * transactionStripWidth + 5 }}>{guide.years}y</span>; })}</div></div>}
@@ -849,7 +882,7 @@ export default function Home() {
           const node = nodes.current[entry.point.id]; if (!node) return null;
           const searchMatch = !searchTerm || entry.point.company.toLocaleLowerCase().includes(searchTerm);
           const muted = (taxFilter === "highlight" && !entry.point.taxSensitive) || (viewMode === "transactions" && focusedCompany !== null && entry.point.company !== focusedCompany) || !searchMatch;
-          return <div key={entry.point.id} aria-hidden={searchTerm && !searchMatch ? "true" : undefined} className={muted ? "opacity-20 grayscale-[.32] transition-opacity duration-300" : "transition-opacity duration-300"} style={{ position: "absolute", left: node.x, top: node.y }}><CatGlyph {...entry} visualLens={visualLens} searchHidden={Boolean(searchTerm && !searchMatch)} searchTerm={searchTerm} searchMatch={searchMatch} showBadges={showPnlBadges} showHalos={showHalos} darkMode={darkMode} focused={viewMode === "transactions" ? focusedCompany === entry.point.company : selectedId === entry.point.id} frozen={!fieldIsMoving} onHover={() => setHoveredId(entry.point.id)} onLeave={() => setHoveredId((current) => current === entry.point.id ? null : current)} onClick={() => { wakeField(); if (viewMode === "transactions") { setFocusedCompany((current) => current === entry.point.company ? null : entry.point.company); setSelectedId(null); setHoveredId(null); } else { setSelectedId(entry.point.id); setHoveredId(null); } }} /></div>;
+          return <div key={entry.point.id} aria-hidden={searchTerm && !searchMatch ? "true" : undefined} className={muted ? "opacity-20 grayscale-[.32] transition-opacity duration-300" : "transition-opacity duration-300"} style={{ position: "absolute", left: node.x, top: node.y }}><CatGlyph {...entry} visualLens={visualLens} searchHidden={Boolean(searchTerm && !searchMatch)} searchTerm={searchTerm} searchMatch={searchMatch} showBadges={showPnlBadges} showHalos={showHalos} darkMode={darkMode} costumes={showCostumes ? costumeLayersById.get(entry.point.id) ?? [] : []} focused={selectedId === entry.point.id || (viewMode === "transactions" && focusedCompany === entry.point.company)} frozen={!fieldIsMoving} onHover={() => setHoveredId(entry.point.id)} onLeave={() => setHoveredId((current) => current === entry.point.id ? null : current)} onClick={() => { wakeField(); if (viewMode === "transactions") { setFocusedCompany((current) => current === entry.point.company ? null : entry.point.company); setSelectedId(null); setHoveredId(null); } else { setSelectedId(entry.point.id); setHoveredId(null); } }} /></div>;
         })}
       </section>
 
@@ -860,7 +893,8 @@ export default function Home() {
 
       <AnimatePresence>{viewMode === "holdings" && selected && focusNode && <motion.aside initial={{ opacity: 0, y: 12, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.98 }} transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }} className={`fixed z-40 w-[min(336px,calc(100vw-28px))] overflow-hidden rounded-2xl border backdrop-blur ${overlayTheme.panel}`} style={{ left: clampCardLeft(focusNode.x, sceneSize.width, focusOnRight), top: clamp(focusNode.y + activeCanvasPanY - window.scrollY - 132, 14, sceneSize.height - 494) }}><div className={`flex items-start justify-between border-b px-5 py-4 ${overlayTheme.divider}`}><div><p className={`font-serif text-[19px] leading-5 ${overlayTheme.title}`}>{selected.company}</p><p className="mt-1 font-mono text-[9px] uppercase tracking-[.17em] text-stone-400">{selected.lots.length === 1 ? "Transaction lot" : `${selected.lots.length} transaction lots`}</p></div><button type="button" onClick={() => setSelectedId(null)} aria-label="Close details" className={`rounded-full p-1 transition ${overlayTheme.closeButton}`}><X size={16} /></button></div><div className={`grid grid-cols-2 gap-x-5 border-b px-5 py-3 ${overlayTheme.divider}`}><MetricRow label="Quantity" value={selected.qty.toLocaleString("en-IN")} theme={overlayTheme} /><MetricRow label="Avg. buy" value={formatPrice(selected.avgPrice)} theme={overlayTheme} /><MetricRow label="Current" value={formatPrice(selected.currentPrice)} theme={overlayTheme} /><MetricRow label="Unrealized P&L" value={`${selected.pnl >= 0 ? "+" : ""}${formatCurrency(selected.pnl)}`} theme={overlayTheme} /></div><div className="max-h-48 overflow-y-auto px-5 py-3"><p className={`mb-2 font-mono text-[9px] uppercase tracking-[.18em] ${overlayTheme.muted}`}>Lot breakdown</p>{selected.lots.map((lot) => { const lotPnl = lot.buy_qty * (lot.current_price - lot.avg_price); const days = ageInDays(lot.buy_date); const completedYears = Math.floor((days ?? 0) / 365); return <div key={lot.id} className={`grid grid-cols-[1fr_auto] gap-2 border-t py-2 first:border-t-0 ${overlayTheme.divider}`}><div><p className={`font-mono text-[10px] ${overlayTheme.lotText}`}>{lot.buy_qty} × {formatPrice(lot.avg_price)}</p><p className={`font-mono text-[9px] ${overlayTheme.muted}`}>{formatTransactionDate(lot.buy_date)}{days ? ` · ${days}d` : ""}{completedYears ? ` · ${completedYears}y complete` : ""}</p></div><span className={`self-center font-mono text-[10px] ${lotPnl >= 0 ? overlayTheme.profit : overlayTheme.loss}`}>{lotPnl >= 0 ? "+" : ""}{formatCurrency(lotPnl)}</span></div>; })}</div>{selected.taxSensitive && <div className={`flex items-center gap-2 border-t px-5 py-3 font-mono text-[10px] ${overlayTheme.taxNotice}`}><Sparkles size={13} /> Loss lot near/over the 365-day threshold.</div>}</motion.aside>}</AnimatePresence>
 
-      <PortfolioDrawer open={drawerOpen} onOpenChange={setDrawerOpen} litterboxRef={litterboxRef} viewMode={viewMode} setViewMode={(mode) => { setViewMode(mode); setSelectedId(null); }} visualLens={visualLens} setVisualLens={setVisualLens} taxFilter={taxFilter} setTaxFilter={(filter) => { setTaxFilter(filter); setSelectedId(null); }} showEtfs={showEtfs} setShowEtfs={setShowEtfs} darkMode={darkMode} etfLotCount={etfLotCount} frozen={frozen} setFrozen={setFrozen} reducedMotion={reducedMotion} repulsion={repulsion} setRepulsion={setRepulsion} gravityOn={gravityOn} setGravityOn={setGravityOn} showPnlBadges={showPnlBadges} setShowPnlBadges={setShowPnlBadges} showHalos={showHalos} setShowHalos={setShowHalos} onImportFile={importFile} uploadNotice={uploadNotice} hasDates={timeline.hasDates} onRestore={() => { setUploadNotice(null); fetch(PORTFOLIO_CSV_URL).then(parsePortfolioResponse).then(({ records: nextRecords, lastModified }) => { localStorage.removeItem(PORTFOLIO_STORAGE_KEY); setRecords(nextRecords); setDataUpdatedAt(lastModified ?? new Date().toISOString()); setUploadNotice({ kind: "success", message: `${nextRecords.length} lots reloaded from portfolio.csv.` }); setSelectedId(null); setHoveredId(null); resetViewport(); }).catch((error: unknown) => { setUploadNotice({ kind: "error", message: error instanceof Error ? error.message : "Portfolio download failed." }); }); }} visibleKittyCount={visiblePoints.length} loadedLotCount={eligibleRecords.length} />
+      <PortfolioDrawer open={drawerOpen} onOpenChange={setDrawerOpen} litterboxRef={litterboxRef} viewMode={viewMode} setViewMode={(mode) => { setViewMode(mode); setSelectedId(null); }} visualLens={visualLens} setVisualLens={setVisualLens} taxFilter={taxFilter} setTaxFilter={(filter) => { setTaxFilter(filter); setSelectedId(null); }} showEtfs={showEtfs} setShowEtfs={setShowEtfs} darkMode={darkMode} etfLotCount={etfLotCount} frozen={frozen} setFrozen={setFrozen} reducedMotion={reducedMotion} repulsion={repulsion} setRepulsion={setRepulsion} gravityOn={gravityOn} setGravityOn={setGravityOn} showPnlBadges={showPnlBadges} setShowPnlBadges={setShowPnlBadges} showHalos={showHalos} setShowHalos={setShowHalos} showCostumes={showCostumes} setShowCostumes={setShowCostumes} onImportFile={importFile} uploadNotice={uploadNotice} hasDates={timeline.hasDates} onRestore={() => { setUploadNotice(null); fetch(PORTFOLIO_CSV_URL).then(parsePortfolioResponse).then(({ records: nextRecords, lastModified }) => { localStorage.removeItem(PORTFOLIO_STORAGE_KEY); setRecords(nextRecords); setDataUpdatedAt(lastModified ?? new Date().toISOString()); setUploadNotice({ kind: "success", message: `${nextRecords.length} lots reloaded from portfolio.csv.` }); setSelectedId(null); setHoveredId(null); resetViewport(); }).catch((error: unknown) => { setUploadNotice({ kind: "error", message: error instanceof Error ? error.message : "Portfolio download failed." }); }); }} visibleKittyCount={visiblePoints.length} loadedLotCount={eligibleRecords.length} />
+      <MrBungles key={`${JSON.stringify(mrBunglesDigest)}${viewMode}${visualLens}`} digest={mrBunglesDigest} viewMode={viewMode} darkMode={darkMode} frozen={effectiveFrozen} onShowMe={focusMrBunglesTarget} onSpeak={() => { setSelectedId(null); setHoveredId(null); setLegendOpen(false); }} />
       <div className={getPortfolioFooterClassName(darkMode)}><span>Data updated {dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</span><span aria-hidden="true" className={PORTFOLIO_FOOTER_SEPARATOR_CLASS}>·</span><a href="https://thecontrarian.in" target="_blank" rel="noreferrer" className={darkMode ? "transition hover:text-stone-200" : "transition hover:text-stone-800"}>© 2026 Mahesh Shantaram / thecontrarian.in</a></div>
     </main>
   );
