@@ -22,13 +22,18 @@ export function createMrBunglesProvider(env: NodeJS.ProcessEnv = process.env, fe
       throw new MrBunglesUnavailableError("Mr. Bungles provider URL is invalid.");
     }
     if (base.username || base.password || base.search || base.hash || (base.protocol !== "https:" && !(base.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(base.hostname)))) throw new MrBunglesUnavailableError("Mr. Bungles provider URL is invalid.");
-    const response = await fetcher(`${base.href.replace(/\/$/, "")}/chat/completions`, {
+    const send = () => fetcher(`${base.href.replace(/\/$/, "")}/chat/completions`, {
       method: "POST",
       redirect: "error",
       signal: AbortSignal.timeout(20000),
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
       body: JSON.stringify({ model, messages: [{ role: "system", content: MR_BUNGLES_SYSTEM_PROMPT }, { role: "system", content: MR_BUNGLES_WIRE_PROMPT }, { role: "user", content: JSON.stringify(digest) }], max_completion_tokens: 800 }),
     });
+    let response = await send();
+    if (response.status === 429) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      response = await send();
+    }
     if (!response.ok || !response.body) throw new Error("Mr. Bungles provider request failed.");
     const reader = response.body.getReader();
     const chunks: Uint8Array[] = [];
