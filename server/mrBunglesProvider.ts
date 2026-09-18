@@ -11,12 +11,13 @@ const completionSchema = z.object({
 
 export function createMrBunglesProvider(env: NodeJS.ProcessEnv = process.env, fetcher: typeof fetch = fetch): MrBunglesProvider {
   return async digest => {
-    const key = env.MR_BUNGLES_API_KEY;
-    const model = env.MR_BUNGLES_MODEL;
+    const morph = (env.LLM_PROVIDER ?? "morph") === "morph";
+    const key = morph ? env.MORPH_API_KEY : env.MR_BUNGLES_API_KEY;
+    const model = morph ? env.MORPH_MODEL || "morph-kimik3" : env.MR_BUNGLES_MODEL;
     if (!key || !model) throw new MrBunglesUnavailableError("Mr. Bungles provider is not configured.");
     let base: URL;
     try {
-      base = new URL(env.MR_BUNGLES_BASE_URL || "https://api.openai.com/v1");
+      base = new URL((morph ? env.MORPH_BASE_URL : env.MR_BUNGLES_BASE_URL) || (morph ? "https://api.morphllm.com/v1" : "https://api.openai.com/v1"));
     } catch {
       throw new MrBunglesUnavailableError("Mr. Bungles provider URL is invalid.");
     }

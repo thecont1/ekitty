@@ -74,7 +74,7 @@ pnpm start        # serves it on http://localhost:3000
 
 That's it. The app remains a static page, with one optional server endpoint for Mr. Bungles.
 
-To enable Mr. Bungles, copy `.env.example` to `.env` and set `MR_BUNGLES_API_KEY` and `MR_BUNGLES_MODEL` to your provider credentials and actual model identifier; `MR_BUNGLES_BASE_URL` selects an OpenAI-compatible `/v1` endpoint. These are server-only settings, never `VITE_` variables. Both `pnpm dev` and the built Express server provide `/api/mr-bungles`; a static-only host or `pnpm preview` cannot supply the AI endpoint. Without configuration the field still works and Mr. Bungles reports that he is unavailable. Use `pnpm start` for a production preview of the AI endpoint.
+To enable Mr. Bungles, copy `.env.example` to `.env` and set `MORPH_API_KEY` — the default provider (`LLM_PROVIDER=morph`) calls Morph's OpenAI-compatible endpoint with `MORPH_MODEL` (default `morph-kimik3`). Set `LLM_PROVIDER` to any other value to fall back to the generic `MR_BUNGLES_API_KEY` / `MR_BUNGLES_MODEL` / `MR_BUNGLES_BASE_URL` OpenAI-compatible path. These are server-only settings, never `VITE_` variables. Both `pnpm dev` and the built Express server provide `/api/mr-bungles`; a static-only host or `pnpm preview` cannot supply the AI endpoint. Without configuration the field still works and Mr. Bungles reports that he is unavailable. Use `pnpm start` for a production preview of the AI endpoint.
 
 ---
 

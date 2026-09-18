@@ -183,7 +183,17 @@ describe("Mr. Bungles endpoint", () => {
 
 describe("Mr. Bungles provider transport", () => {
   const okResponse = (text: string) => new Response(JSON.stringify({ choices: [{ message: { content: text } }] }), { status: 200, headers: { "Content-Type": "application/json" } });
-  const env = { MR_BUNGLES_API_KEY: "k-test", MR_BUNGLES_MODEL: "m-test", MR_BUNGLES_BASE_URL: "https://api.openai.com/v1" };
+  const env = { LLM_PROVIDER: "incumbent", MR_BUNGLES_API_KEY: "k-test", MR_BUNGLES_MODEL: "m-test", MR_BUNGLES_BASE_URL: "https://api.openai.com/v1" };
+
+  it("defaults to Morph on morph-kimik3 when LLM_PROVIDER is unset", async () => {
+    const fetcher = vi.fn(async () => okResponse("grounded text"));
+    const provider = createMrBunglesProvider({ MORPH_API_KEY: "k-morph" }, fetcher as unknown as typeof fetch);
+    await expect(provider(digest())).resolves.toBe("grounded text");
+    const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://api.morphllm.com/v1/chat/completions");
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer k-morph");
+    expect(JSON.parse(init.body as string).model).toBe("morph-kimik3");
+  });
 
   it("posts the digest with bearer auth and both system prompts verbatim", async () => {
     const fetcher = vi.fn(async () => okResponse("grounded text"));

@@ -47,7 +47,7 @@ function vitePluginMrBungles(): Plugin {
     name: "mr-bungles-api",
     configureServer(server: ViteDevServer) {
       const app = express();
-      app.use("/api/mr-bungles", createMrBunglesRouter({ provider: createMrBunglesProvider({ ...loadEnv(server.config.mode, PROJECT_ROOT, "MR_BUNGLES_"), ...process.env }) }));
+      app.use("/api/mr-bungles", createMrBunglesRouter({ provider: createMrBunglesProvider({ ...loadEnv(server.config.mode, PROJECT_ROOT, ["MR_BUNGLES_", "MORPH_", "LLM_PROVIDER"]), ...process.env }) }));
       server.middlewares.use(app);
     },
   };
