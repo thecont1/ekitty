@@ -44,7 +44,9 @@ export function formatMarketPercent(value: number, profile: MarketProfile, maxim
 }
 
 export function formatMarketDate(value: string | Date, profile: MarketProfile) {
-  return new Intl.DateTimeFormat(profile.locale, { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
+  const calendarDay = typeof value === "string" ? value.match(/^(\d{4})-(\d{2})-(\d{2})$/) : null;
+  const date = calendarDay ? new Date(Number(calendarDay[1]), Number(calendarDay[2]) - 1, Number(calendarDay[3])) : new Date(value);
+  return new Intl.DateTimeFormat(profile.locale, { day: "2-digit", month: "short", year: "numeric" }).format(date);
 }
 
 export function formatMarketMonth(serial: number, profile: MarketProfile) {

@@ -16,14 +16,6 @@ async function main() {
   const digest = buildMrBunglesDigest(asHoldingPoints(lots), "holdings", "portfolio-impact", { includesEtfs: true, taxFilter: "all", query: "" });
   if (!digest) throw new Error("digest build failed");
 
-  const raw = await fetch("https://api.morphllm.com/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.MORPH_API_KEY}` },
-    body: JSON.stringify({ model: "morph-kimik3", messages: [{ role: "user", content: "Reply with the single word: ready" }], max_completion_tokens: 16 }),
-  });
-  console.log("PROBE STATUS:", raw.status);
-  console.log("PROBE BODY:", (await raw.text()).slice(0, 600));
-
   const provider = createMrBunglesProvider();
   const utterance = await provider(digest);
   const reply = validateMrBunglesReply({ targetId: digest.targets[0].id, utterance }, digest)

@@ -174,18 +174,18 @@ export const VISUAL_LENS_COPY: Record<VisualLens, { label: string; size: string;
   "portfolio-impact": {
     label: "Portfolio impact",
     size: "Bigger kitty = more money invested.",
-    color: "Redder or greener kitty = larger rupee loss or gain.",
-    emphasis: "Heavier halo = larger rupee impact on your wealth.",
+    color: "Redder or greener kitty = larger money loss or gain.",
+    emphasis: "Heavier halo = larger money impact on your wealth.",
   },
   "trade-quality": {
     label: "Trade quality",
     size: "Bigger kitty = more money invested.",
     color: "Redder or greener kitty = worse or better percentage return.",
-    emphasis: "Heavier halo = larger rupee impact on your wealth.",
+    emphasis: "Heavier halo = larger money impact on your wealth.",
   },
   "capital-at-risk": {
     label: "Capital at risk",
-    size: "Bigger kitty = larger absolute rupee gain or loss.",
+    size: "Bigger kitty = larger absolute gain or loss.",
     color: "Redder or greener kitty = worse or better percentage return.",
     emphasis: "Heavier halo = more money invested.",
   },

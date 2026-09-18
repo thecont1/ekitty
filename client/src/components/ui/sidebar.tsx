@@ -40,6 +40,15 @@ type SidebarContextProps = {
   toggleSidebar: () => void;
 };
 
+export function readSidebarOpen(storage: Pick<Storage, "getItem"> | undefined, fallback: boolean) {
+  try {
+    const stored = storage?.getItem(SIDEBAR_STORAGE_KEY);
+    return stored === "true" ? true : stored === "false" ? false : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 const SidebarContext = React.createContext<SidebarContextProps | null>(null);
 
 function useSidebar() {
@@ -69,7 +78,7 @@ function SidebarProvider({
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
-  const [_open, _setOpen] = React.useState(defaultOpen);
+  const [_open, _setOpen] = React.useState(() => readSidebarOpen(typeof window === "undefined" ? undefined : window.localStorage, defaultOpen));
   const open = openProp ?? _open;
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {

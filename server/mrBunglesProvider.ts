@@ -31,6 +31,7 @@ export function createMrBunglesProvider(env: NodeJS.ProcessEnv = process.env, fe
     });
     let response = await send();
     if (response.status === 429) {
+      try { await response.body?.cancel(); } catch { /* body may already be consumed */ }
       await new Promise(resolve => setTimeout(resolve, 2000));
       response = await send();
     }
