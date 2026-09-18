@@ -21,6 +21,7 @@ import {
   type FieldRestState,
 } from "./kittyField";
 import { asHoldingPoints, parsePortfolioCsv } from "./portfolio";
+import { deriveCostumeStates, type CostumeId } from "./portfolioCostumes";
 import { deriveHoldingVisuals } from "./portfolioVisuals";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -410,5 +411,80 @@ describe("mover ring data reality check", () => {
     expect(sleepy?.dayChangePercent).toBeCloseTo(0.5, 5);
     expect(Math.abs(mover!.dayChangePercent!)).toBeGreaterThanOrEqual(2);
     expect(Math.abs(sleepy!.dayChangePercent!)).toBeLessThan(2);
+  });
+});
+
+describe("costume layers", () => {
+  const costumePoint = (company: string, currentPrice: number) =>
+    asHoldingPoints(parsePortfolioCsv([
+      "company,buy_qty,avg_price,current_price,txn_date",
+      `${company},10,100,${currentPrice},2020-01-01`,
+    ].join("\n")).records)[0];
+
+  const glyphProps = (point: ReturnType<typeof costumePoint>, costumes: readonly CostumeId[]) => ({
+    point,
+    size: 120,
+    stroke: 2,
+    pigment: { fill: "#fff", ink: "#ff3b3b", fillOpacity: 0.4, direction: "loss" as const },
+    emphasis: { haloWidth: 3, haloOpacity: 0.4, symbol: "−" as const },
+    bobDuration: 3,
+    visualLens: "portfolio-impact" as const,
+    focused: false,
+    frozen: true,
+    searchHidden: false,
+    searchTerm: "",
+    searchMatch: true,
+    showBadges: false,
+    showHalos: false,
+    darkMode: false,
+    costumes,
+    onHover: () => undefined,
+    onLeave: () => undefined,
+    onClick: () => undefined,
+  });
+
+  it("draws layers inside the same 192×192 frame with the base linework intact", () => {
+    const markup = renderToStaticMarkup(createElement(PortfolioKittySvg, { stroke: "#000", fill: "transparent", fillOpacity: 0, strokeWidth: 2, costumes: ["wounded", "basket"] }));
+    expect(markup).toContain('viewBox="0 0 192 192"');
+    expect(markup).toContain("M116.52,152.28c-8,3.24-10.96,15.72,3.24,15.72s19.68-16,19.68-27a116.28,116.28,0,0,0-4.96-27,17,17,0,0,0,4.96-7.36c.68-3.6,4.44-40,4.76-41.56a17.08,17.08,0,0,0,1.88-5.96,10.6,10.6,0,0,0-13.96-8");
+    expect(markup).toContain('class="kitty-costumes"');
+    expect(markup).toContain('data-costume="wounded"');
+    expect(markup).toContain('data-costume="basket"');
+    expect(markup).not.toContain("#D8AE37");
+  });
+
+  it("renders no layer group at all when the costume list is empty", () => {
+    const markup = renderToStaticMarkup(createElement(PortfolioKittySvg, { stroke: "#000", fill: "transparent", fillOpacity: 0, strokeWidth: 2 }));
+    expect(markup).not.toContain("kitty-costumes");
+    expect(markup).not.toContain("data-costume");
+  });
+
+  it("names the story and basket in the CatGlyph button aria-label", () => {
+    const point = costumePoint("Index ETF", 50);
+    const layers = deriveCostumeStates(point, "holdings", [point]).layers;
+    expect(layers).toEqual(["wounded", "basket"]);
+    const markup = renderToStaticMarkup(createElement(CatGlyph, glyphProps(point, layers)));
+    expect(markup).toContain('data-point-id="holding-Index ETF"');
+    expect(markup).toContain("costumes: Wounded, Basket");
+    const bare = renderToStaticMarkup(createElement(CatGlyph, glyphProps(point, [])));
+    expect(bare).not.toContain("costumes:");
+  });
+
+  it("keeps the tax collar independent of costume layers", () => {
+    const point = costumePoint("Index ETF", 50);
+    expect(point.taxSensitive).toBe(true);
+    const withCostumes = renderToStaticMarkup(createElement(CatGlyph, glyphProps(point, ["wounded", "basket"])));
+    const without = renderToStaticMarkup(createElement(CatGlyph, glyphProps(point, [])));
+    for (const markup of [withCostumes, without]) expect(markup).toContain('aria-label="Loss-review flag (held 330+ days)"');
+  });
+
+  it("suppresses the legacy ETF badge only while the basket costume stands in for it", () => {
+    const point = costumePoint("Index ETF", 50);
+    const bare = renderToStaticMarkup(createElement(CatGlyph, glyphProps(point, [])));
+    expect(bare).toContain(">ETF<");
+    const storyOnly = renderToStaticMarkup(createElement(CatGlyph, glyphProps(point, ["wounded"])));
+    expect(storyOnly).toContain(">ETF<");
+    const basketed = renderToStaticMarkup(createElement(CatGlyph, glyphProps(point, ["wounded", "basket"])));
+    expect(basketed).not.toContain(">ETF<");
   });
 });

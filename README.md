@@ -14,12 +14,17 @@ No dashboards, no tickers, no logins. Just cats that mean something.
 - **Colour tells you profit or loss** — soft green for gains, red for losses, with the intensity matching how big the gain or loss is.
 - **Size tells you money** — the bigger the cat, the more you have invested in it (or switch what "size" means using the visual lenses).
 - **Gold collars** mark lots old enough to care about for tax-loss harvesting.
+- **Twelve costumes** add one true story per kitty: a bandage for a deep loss, brass shades-and-chain for a runaway gain, a top hat for a concentrated holding. One main costume wins; an ETF basket may join it. Switch costumes off in the drawer; gold tax collars stay independent.
 - **Hover a cat** for exact figures. **Click one** to bring it into focus. Nothing else clutters the screen until you ask for it.
 
 ## Two ways to look at your portfolio
 
 1. **Field view** — the default constellation of all your holdings.
 2. **Transactions view** — every purchase becomes its own kitty, lined up under the month you bought it. Drag sideways to travel through time, and watch your past decisions scatter across a 24-month window.
+
+## Mr. Bungles
+
+Mr. Bungles, the Glass Kitty, points rather than chats. Click his quiet perch for one blunt, digest-grounded directive; **Show me** focuses that exact holding or purchase. He follows the active view and filters, speaks only supplied facts, and never accepts replies. Only a click sends a small portfolio digest to your configured AI provider; there is no raw CSV upload. His label dismisses with Escape, a click outside, or its close button, and cached replies last one minute.
 
 ## Bring your own data
 
@@ -36,7 +41,7 @@ Two ways to load it:
 - **Drop it on the page** — drag your `portfolio.csv` anywhere onto the screen (or click the upload spot).
 - Or just replace `client/public/data/portfolio.csv` before building, and it loads automatically.
 
-Your file never leaves your computer. There's no account, no server database, no sync. The app remembers your last imported file in your own browser only.
+Your CSV stays in your browser. There is no account, server database, or sync. The app remembers imports locally; only an explicit Mr. Bungles click sends the limited digest described above.
 
 ## Things you can tweak
 
@@ -44,6 +49,7 @@ Open the drawer (the litter-box icon, top right):
 
 - Switch between Field and Transactions views
 - Turn ETFs on/off
+- Turn costumes on/off (on by default)
 - Toggle the Freeze button (stops all movement)
 - Change what drives each cat's size and colour (the "lenses")
 - Import a different CSV anytime
@@ -52,7 +58,7 @@ There's also a light/dark mode switch, a search box to find a specific company, 
 
 ## Running it yourself
 
-You need [Node.js](https://nodejs.org) (v20+) and [pnpm](https://pnpm.io).
+You need [Node.js](https://nodejs.org) 20.19+ or 22.12+ and [pnpm](https://pnpm.io).
 
 ```bash
 pnpm install      # install dependencies
@@ -66,13 +72,15 @@ pnpm build        # builds the app and a small web server
 pnpm start        # serves it on http://localhost:3000
 ```
 
-That's it. The whole thing is one static page plus a tiny server that just hands out files.
+That's it. The app remains a static page, with one optional server endpoint for Mr. Bungles.
+
+To enable Mr. Bungles, copy `.env.example` to `.env` and set `MORPH_API_KEY` — the default provider (`LLM_PROVIDER=morph`) calls Morph's OpenAI-compatible endpoint with `MORPH_MODEL` (default `morph-kimik3`). Set `LLM_PROVIDER` to any other value to fall back to the generic `MR_BUNGLES_API_KEY` / `MR_BUNGLES_MODEL` / `MR_BUNGLES_BASE_URL` OpenAI-compatible path. These are server-only settings, never `VITE_` variables. Both `pnpm dev` and the built Express server provide `/api/mr-bungles`; a static-only host or `pnpm preview` cannot supply the AI endpoint. Without configuration the field still works and Mr. Bungles reports that he is unavailable. Use `pnpm start` for a production preview of the AI endpoint.
 
 ---
 
 ## Privacy
 
-Everything runs in your browser. Your CSV is parsed locally, stored in your browser's local storage if you import it, and sent nowhere. The only optional network calls are Google Fonts (for the typefaces) and a self-hosted analytics beacon you can disable — see `.env.example`.
+Portfolio parsing, calculations, costumes, and storage run locally. Clicking Mr. Bungles sends company labels, selected holding/purchase facts, totals, view/lens and scope flags to the app server and configured model provider; the raw CSV and lot arrays are not sent. The server keeps a bounded, in-memory reply cache for one minute and does not log digests. Provider retention is governed by that provider. Font requests and optional self-hosted analytics remain separate — see `.env.example`.
 
 ## Credits & license
 

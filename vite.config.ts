@@ -1,9 +1,12 @@
 import { jsxLocPlugin } from "@builder.io/vite-plugin-jsx-loc";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
+import express from "express";
 import fs from "node:fs";
 import path from "node:path";
-import { defineConfig, type Plugin, type ViteDevServer } from "vite";
+import { defineConfig, loadEnv, type Plugin, type ViteDevServer } from "vite";
+import { createMrBunglesRouter } from "./server/mrBungles";
+import { createMrBunglesProvider } from "./server/mrBunglesProvider";
 
 const PROJECT_ROOT = import.meta.dirname;
 
@@ -39,7 +42,18 @@ function vitePluginStorageProxy(): Plugin {
   };
 }
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginStorageProxy()];
+function vitePluginMrBungles(): Plugin {
+  return {
+    name: "mr-bungles-api",
+    configureServer(server: ViteDevServer) {
+      const app = express();
+      app.use("/api/mr-bungles", createMrBunglesRouter({ provider: createMrBunglesProvider({ ...loadEnv(server.config.mode, PROJECT_ROOT, ["MR_BUNGLES_", "MORPH_", "LLM_PROVIDER"]), ...process.env }) }));
+      server.middlewares.use(app);
+    },
+  };
+}
+
+const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginStorageProxy(), vitePluginMrBungles()];
 
 export default defineConfig({
   plugins,

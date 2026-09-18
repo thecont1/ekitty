@@ -24,8 +24,7 @@ import { cva, VariantProps } from "class-variance-authority";
 import { PanelLeftIcon } from "lucide-react";
 import * as React from "react";
 
-const SIDEBAR_COOKIE_NAME = "sidebar_state";
-const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
+const SIDEBAR_STORAGE_KEY = "ekitty-sidebar-state";
 const SIDEBAR_WIDTH = "16rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
@@ -40,6 +39,15 @@ type SidebarContextProps = {
   isMobile: boolean;
   toggleSidebar: () => void;
 };
+
+export function readSidebarOpen(storage: Pick<Storage, "getItem"> | undefined, fallback: boolean) {
+  try {
+    const stored = storage?.getItem(SIDEBAR_STORAGE_KEY);
+    return stored === "true" ? true : stored === "false" ? false : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null);
 
@@ -70,7 +78,7 @@ function SidebarProvider({
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
-  const [_open, _setOpen] = React.useState(defaultOpen);
+  const [_open, _setOpen] = React.useState(() => readSidebarOpen(typeof window === "undefined" ? undefined : window.localStorage, defaultOpen));
   const open = openProp ?? _open;
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
@@ -81,8 +89,11 @@ function SidebarProvider({
         _setOpen(openState);
       }
 
-      // This sets the cookie to keep the sidebar state.
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+      try {
+        window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(openState));
+      } catch {
+        // Storage may be unavailable; sidebar state remains session-local.
+      }
     },
     [setOpenProp, open]
   );

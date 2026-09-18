@@ -1,14 +1,16 @@
 import PortfolioKittySvg from "@/components/PortfolioKittySvg";
 import { formatCurrency, type PortfolioStats } from "@/lib/portfolio";
+import { DEFAULT_MARKET_PROFILE, type MarketProfile } from "@shared/marketProfiles";
 
 type PortfolioHeaderProps = {
   stats: PortfolioStats;
   hasPortfolio: boolean;
   darkMode: boolean;
+  marketProfile?: MarketProfile;
   onOpenPortfolio: () => void;
 };
 
-export default function PortfolioHeader({ stats, hasPortfolio, darkMode, onOpenPortfolio }: PortfolioHeaderProps) {
+export default function PortfolioHeader({ stats, hasPortfolio, darkMode, marketProfile = DEFAULT_MARKET_PROFILE, onOpenPortfolio }: PortfolioHeaderProps) {
   const positive = stats.totalUnrealizedPnl >= 0;
   const sign = positive ? "+" : "−";
   const pnlClass = positive
@@ -28,16 +30,16 @@ export default function PortfolioHeader({ stats, hasPortfolio, darkMode, onOpenP
           type="button"
           onClick={onOpenPortfolio}
           className="mt-1.5 flex min-h-11 w-full flex-wrap items-baseline justify-center gap-x-2 gap-y-0.5 rounded-lg px-1 pb-1 pt-0.5 text-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D8AE37]"
-          aria-label={`Invested ${formatCurrency(stats.totalInvestedValue)}. Net unrealized ${positive ? "profit" : "loss"} ${formatCurrency(Math.abs(stats.totalUnrealizedPnl))}, ${Math.abs(stats.totalUnrealizedPnlPercent).toFixed(2)} percent.`}
+          aria-label={`Invested ${formatCurrency(stats.totalInvestedValue, marketProfile)}. Net unrealized ${positive ? "profit" : "loss"} ${formatCurrency(Math.abs(stats.totalUnrealizedPnl), marketProfile)}, ${Math.abs(stats.totalUnrealizedPnlPercent).toFixed(2)} percent.`}
         >
           {/* The one line that matters: invested (neutral) + absolute P&L and
               percentage (both colour-coded by sign), centred under the
               logo + title. Tabular numerals keep the columns steady. */}
           <span className={`whitespace-nowrap font-mono text-[15px] font-semibold leading-none tabular-nums ${investedClass}`}>
-            {formatCurrency(stats.totalInvestedValue)}
+            {formatCurrency(stats.totalInvestedValue, marketProfile)}
           </span>
           <span className={`whitespace-nowrap font-mono text-[13px] font-semibold leading-none tabular-nums ${pnlClass}`}>
-            {sign}{formatCurrency(Math.abs(stats.totalUnrealizedPnl))}
+            {sign}{formatCurrency(Math.abs(stats.totalUnrealizedPnl), marketProfile)}
           </span>
           <span className={`whitespace-nowrap font-mono text-[12px] font-medium leading-none tabular-nums opacity-80 ${pnlClass}`}>
             ({sign}{Math.abs(stats.totalUnrealizedPnlPercent).toFixed(2)}%)

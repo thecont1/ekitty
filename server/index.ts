@@ -1,7 +1,9 @@
 import express from "express";
 import { createServer } from "http";
+import { existsSync } from "node:fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { createMrBunglesRouter } from "./mrBungles";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,6 +18,8 @@ async function startServer() {
       ? path.resolve(__dirname, "public")
       : path.resolve(__dirname, "..", "dist", "public");
 
+  app.use("/api/mr-bungles", createMrBunglesRouter());
+
   app.use(express.static(staticPath));
 
   // Handle client-side routing - serve index.html for all routes
@@ -29,5 +33,7 @@ async function startServer() {
     console.log(`Server running on http://localhost:${port}/`);
   });
 }
+
+if (existsSync(".env")) process.loadEnvFile(".env");
 
 startServer().catch(console.error);

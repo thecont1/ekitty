@@ -6,7 +6,7 @@ Architecture, tech stack, and the reasoning behind the non-obvious decisions. Fo
 
 ## 1. What it is
 
-ekitty is a single-page client-side application that visualises an equity portfolio as an animated "field" of SVG cat glyphs. There is no backend database, no auth, no API surface: the Express server that ships in production exists only to serve static files. All portfolio math, CSV parsing, layout, and animation run in the browser.
+ekitty is a single-page client-side application that visualises an equity portfolio as an animated "field" of SVG cat glyphs. There is no backend database or auth; Express serves static files plus the optional `POST /api/mr-bungles` endpoint. Portfolio calculations, CSV parsing, layout, costume state, and digest construction remain client-side.
 
 Repo layout:
 
@@ -25,7 +25,11 @@ client/
     hooks/                # usePersistFn, useComposition, useMobile
     contexts/ThemeContext # light/dark mode
 shared/const.ts           # constants shared between client and server
-server/index.ts           # production static file server (Express)
+shared/mrBungles.ts       # Mr. Bungles digest schema + grounded directive builders (client and server)
+server/index.ts           # production static file server (Express) + /api/mr-bungles mount
+server/mrBungles.ts       # validated, rate-limited, cached router for /api/mr-bungles
+server/mrBunglesProvider.ts # OpenAI-compatible provider call (server env only)
+server/mr-bungles-prompt.ts # Mr. Bungles system/wire contract
 scripts/                  # one-off data verification scripts (.mts)
 vite.config.ts            # build config + three custom dev plugins
 ```
@@ -52,7 +56,7 @@ vite.config.ts            # build config + three custom dev plugins
 
 - **No state-management library.** The app is one screen; `useState`/`useMemo` in `Home.tsx` plus a theme context cover it. Redux/Zustand would be architecture tourism.
 - **No charting library.** The transaction timeline is drawn as positioned DOM nodes on a GSAP-transformed world container, not as a chart. A chart lib would fight the physics-field metaphor.
-- **No backend logic.** `server/index.ts` is ~30 lines. Everything security- or money-relevant is client-side and offline-capable by design.
+- **No backend portfolio logic.** The sole exception is `POST /api/mr-bungles`: a bounded, validated, cached forwarder to an env-configured model provider; portfolio calculations stay client-side.
 
 ## 3. Data model and pipeline
 
@@ -77,6 +81,7 @@ These are enforced in code, not convention:
 - **Day-change is never imputed.** `prev_close_price` is optional per lot. Day-mover values are computed only when *every* contributing lot has a valid positive previous close; partial coverage renders as "unavailable", never zero.
 - **Current-value-by-date ≠ historical value.** The (prototype-stage) cumulative series idea is explicitly gated in `docs/timeline-storytelling-spike.md`: with only today's marks, a dated value series answers "what would accumulated lots be worth today", not "what was the portfolio worth then". The doc requires explicit labelling and a ship/reject review gate.
 - Uploaded CSVs are stored in `localStorage` under `ekitty-portfolio-csv`; "Reload portfolio.csv" clears it and refalls back to the served file (whose `Last-Modified` becomes the "data updated" dateline).
+- Tax flags are the existing loss-plus-330-day age heuristic, not verified tax eligibility. Holding age means oldest known lot; no missing dates, prior closes, history, volatility, or quote freshness are invented.
 
 ## 4. Rendering and animation
 
@@ -90,6 +95,25 @@ Two independent motion systems:
 - `prefers-reduced-motion` freezes the field entirely (`effectiveFrozen`) while keeping every interaction functional.
 - Every cat is a real `<button>` with a fully descriptive `aria-label` (company, profit/loss, amount, percent, active lens, ETF/tax status), visible focus ring in Catkin Gold, and Tab order that hides search-filtered-out cats.
 - Controls meet 48px minimum touch targets; hover affordances have focus equivalents.
+
+### Costume semantics
+
+Each kitty may wear one main costume (plus an ETF basket). `deriveCostumeStates()` in `client/src/lib/portfolioCostumes.ts` computes the eligible states per record; `COSTUME_ORDER` decides priority, the first non-`basket` eligible state is drawn, and any remaining eligible states are not drawn. Share denominators are the ETF-filtered portfolio *before* search or tax-isolate filters; a share is unavailable when denominator inputs are negative or non-finite. The costume palette uses brass `#9b5939`/`#d79b79` — never Catkin Gold — and adds no animation beyond the base bob; costumes freeze under reduced motion and the Freeze control.
+
+| Costume | Field view | Transactions view |
+| --- | --- | --- |
+| Wounded | Bandage · blended loss of at least 25%. | Bandage · this purchase has lost at least 25%. |
+| Monopoly | Top hat + green coat · at least 20% of portfolio current value. | — |
+| Firefighter | — | Fire jacket · this purchase used at least 10% of invested capital. |
+| Parachute | Parachute · holding down at least 2% today; every lot covered. | Parachute · purchase down at least 2% today; prior close known. |
+| Rocket | Rocket pack · holding up at least 2% today; every lot covered. | Rocket pack · purchase up at least 2% today; prior close known. |
+| Strutting | Brass chain + shades · blended gain of at least 50%. | Brass chain + shades · this purchase has gained at least 50%. |
+| Patchwork | Split coat · winning and losing purchases within one holding. | — |
+| Fledgling | Eggshell cap · every purchase is dated and under 30 days old. | Eggshell cap · this purchase is under 30 days old. |
+| Veteran | Reading glasses · oldest known purchase is at least 730 days old. | Reading glasses · this purchase is at least 730 days old. |
+| Tightrope | Balance pole · blended return is within 1% of break-even. | Balance pole · this purchase is within 1% of break-even. |
+| Fog | Dotted veil · day-change unavailable for the complete holding. | Dotted veil · day-change unavailable for this purchase. |
+| Basket | Woven basket · all contributing lots are classified as ETF. | Woven basket · this purchase is classified as ETF. |
 
 ## 5. Design system decisions
 
@@ -107,17 +131,28 @@ The design language ("Inkfield Menagerie", documented in `ideas.md`) drives seve
 - **wouter is patched** (`patches/wouter@3.7.1.patch`). The patch is declared in `pnpm.overrides`-style config so it survives lockfile regeneration. If you bump wouter, re-check the patch applies.
 - **esbuild bundles the server separately** from Vite (`server/index.ts → dist/index.js`, `--packages=external`): the server keeps normal Node resolution for express while the client gets Vite's optimised bundle. One `pnpm build` produces both.
 - **Vite root points at `client/`**, aliases `@` → `client/src`, `@shared` → `shared/`. Output goes to `dist/public`, matching what the Express server serves.
-- **Two custom dev-only Vite plugins** live inline in `vite.config.ts`:
+- **Three custom dev-only Vite plugins** live inline in `vite.config.ts`:
   1. **Storage proxy** — serves `/data/*` from local `client/public/data/`, the canonical privacy-preserving source. Missing files return 404.
   2. **jsx-loc plugin** — injects source-location attributes for debugging.
+  3. **Mr. Bungles route** — mounts the same `createMrBunglesRouter` used in production at `/api/mr-bungles`, so dev and prod share the endpoint.
 - **Analytics is opt-in via env.** `VITE_ANALYTICS_ENDPOINT` / `VITE_ANALYTICS_WEBSITE_ID` (self-hosted Umami) are interpolated into `client/index.html`; copy `.env.example` → `.env` or the script tag resolves empty. No third-party analytics by default.
 - **Type-checking is a gate:** `pnpm check` runs `tsc --noEmit`; formatting is Prettier (`.prettierrc`).
 
+### Mr. Bungles
+
+Mr. Bungles is an optional, click-only AI commentary feature: the Glass Kitty perch speaks one grounded directive per click.
+
+- **Digest construction is client-side and validated twice.** `shared/mrBungles.ts` defines a strict Zod schema for the digest and the reply; the client and endpoint separately enforce a 32 KiB request limit. The digest carries at most 13 targets: the union of the top 3 by concentration, worst losers, best gainers (by absolute P&L), and day movers (by absolute percent), plus one quiet curiosity. Holdings use company totals; transactions use the exact lot. Totals cover the full ETF-filtered portfolio, while targets respect the active search and tax-isolate filters.
+- **The model selects, never writes.** The system/wire contract in `server/mr-bungles-prompt.ts` instructs the model to return exactly one of the digest's precomputed, grounded utterances — not a freeform financial forecast. The response is validated verbatim against the digest on the server *and* again in the client. The persona has no chat channel, signature, or disclaimer; the single app-level disclaimer lives in the portfolio legend.
+- **Provider wiring:** the server provider (`server/mrBunglesProvider.ts`) calls an OpenAI-compatible Chat Completions endpoint over native `fetch`. `LLM_PROVIDER=morph` (the default) reads `MORPH_API_KEY` / `MORPH_MODEL` (default `morph-kimik3`) / `MORPH_BASE_URL` (default `https://api.morphllm.com/v1`); any other `LLM_PROVIDER` falls back to the generic `MR_BUNGLES_BASE_URL` / `MR_BUNGLES_MODEL` / `MR_BUNGLES_API_KEY` path, which defaults to OpenAI. All are server-only env (read from `.env` through `process.loadEnvFile`); the API key never reaches the client bundle.
+- **Operation bounds:** server reply cache 64 entries / 60 s, client cache 8 entries / 60 s (memory only); identical in-flight requests deduplicate, at most 4 concurrent distinct calls, and at most 30 new provider calls per rolling minute per process. The provider deadline is 20 s and the provider body is capped at 64 KiB. Failure map: malformed JSON/schema → 400, oversized body → 413, wrong content type → 415, non-POST → 405, foreign origin → 403, schema-valid digest without actionable targets → 422, busy or rate-limited → 429, unconfigured → 503, ungrounded or upstream failure → 502.
+- This is **not** distributed rate control or auth; public deployments that need additional abuse resistance should add edge controls rather than new infrastructure here. Static-only hosting or `pnpm preview` cannot supply the endpoint — the field still works and Mr. Bungles reports himself unavailable.
+
 ## 7. Testing
 
-Unit tests target the **pure layers** — `lib/portfolio.test.ts`, `portfolioAcceptance.test.ts`, `portfolioVisuals.test.ts`, `uiState.test.ts` — covering CSV edge cases, aggregation correctness, percentile/normalisation behaviour, and UI-state helpers. Run with `npx vitest` (Vitest 2).
+Unit tests target the **pure layers** — `lib/portfolio.test.ts`, `portfolioAcceptance.test.ts`, `portfolioVisuals.test.ts`, `uiState.test.ts` — covering CSV edge cases, aggregation correctness, percentile/normalisation behaviour, and UI-state helpers. Because the Vite root is `client/`, all tests — including the server HTTP endpoint tests (`lib/mrBunglesEndpoint.test.ts`) — live under `client/src`. Run with `pnpm test` or `pnpm exec vitest` (Vitest 2).
 
-The rendering layer is validated through acceptance scripts rather than component tests:
+SSR component tests cover glyph paths, costume layers, accessible labels, and legend scope. Browser checks validate perceptual rendering and interaction at desktop/mobile sizes, in both themes, with keyboard and reduced motion. Additional data acceptance scripts include:
 
 - `scripts/verify-august-placement.mts` — asserts specific companies' transactions land in the correct literal month serials on the timeline axis.
 - `scripts/verify-refresh.mts` — parses the current canonical CSV and summarises rows/dated rows/ETF classification/year-badge eligibility against expectations after each data refresh.
@@ -128,11 +163,17 @@ This split is deliberate: financial math must be exact and regression-tested; th
 
 ## 8. Known constraints and sharp edges
 
-- **Single-page scope.** wouter routes exist for `/` and a 404 fallback; there is no deep-linkable state (drawer open, selected cat, zoom). State is intentionally ephemeral except the imported CSV.
+- **Market profiles.** `shared/marketProfiles.ts` is the single source of currency code/symbol, digit grouping, date style, and the age-based loss-review threshold per market (India default; US, Singapore, UK companions — SG/UK set `taxReviewAgeDays: null` rather than inventing a threshold). The drawer switch re-dresses the field live; the digest carries `market` so Mr. Bungles speaks the same units, and the schema validates `taxFlag` against the profile's threshold.
+- **Single-page scope.** wouter routes exist for `/`, `/privacy`, and a 404 fallback; there is no deep-linkable state (drawer open, selected cat, zoom). State is intentionally ephemeral except the imported CSV.
 - **localStorage as the only persistence.** Clearing site data loses an uploaded portfolio. The canonical `portfolio.csv` in-repo is the durable record.
 - **Prices are manual.** `current_price` comes from whatever produced the CSV. Nothing fetches live quotes — a privacy choice, not an oversight.
 - **Timeline caps at a 24-month window** with right-anchored drag-zoom; older months remain reachable via navigation but never render simultaneously.
 - **Dev scripts assume Linux paths** (`scripts/*.mts`); they're migration artifacts from the original build environment, not part of the runtime.
+- **Map iterators need `Array.from`.** The TS target predates downlevel iteration; spread/`for…of` over `Map` iterators fails typecheck — collect with `Array.from(...)` instead.
+- **Do not exclude tests from `tsconfig.json`.** An excluded test opens in an IDE inferred project without `paths`, so imports such as `@shared/*` degrade to `any` and callbacks report `noImplicitAny`; keeping tests included makes editor diagnostics match `pnpm check`.
+- **Tailwind v4 `focus-visible:outline` never sets `outline-style`.** Use `focus-visible:outline-solid` for focus rings on non-`button`/`select`/`input` elements (the global rule in `index.css` covers only those three).
+- **Standalone SVG mounts need explicit size.** `PortfolioKittySvg` carries no width/height attributes; browser-default 300×150 overflows small wrappers — set `width:100%;height:100%` (or fixed dims) on the host.
+- **Guard stale async `finally` blocks by controller.** When a new request can start before an old one settles, compare `pendingAbort.current !== controller` inside `finally` so an old request can't clear the new one's busy state or timeout.
 
 ## 9. Extension points
 

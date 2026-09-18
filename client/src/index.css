@@ -103,3 +103,28 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 @media (pointer: coarse) {
   section[aria-label="Portfolio kitty field"] { cursor: auto !important; }
 }
+
+.mr-bungles { position: fixed; right: 12px; bottom: calc(7rem + env(safe-area-inset-bottom)); z-index: 40; }
+.mr-bungles[data-empty="true"] { z-index: 56; }
+.mr-bungles-glass { display: block; width: 100%; height: 100%; transform-origin: 50% 90%; transition: transform 400ms cubic-bezier(.22,1,.36,1); }
+.mr-bungles[data-ignored="true"] .mr-bungles-glass { transform: rotate(-7deg) translateY(2px); }
+.mr-bungles button:is(:hover,:focus-visible) .mr-bungles-glass { transform: none; }
+@keyframes mr-bungles-glint { 0%,80%,100% { opacity: .35; } 90% { opacity: .85; } }
+.mr-bungles-glint { animation: mr-bungles-glint 9s linear infinite; }
+.mr-bungles[data-frozen="true"] *, .mr-bungles[data-frozen="true"] *::before { animation: none !important; transition: none !important; }
+.mr-bungles[data-frozen="true"] .mr-bungles-glass { transform: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .mr-bungles *, .mr-bungles *::before, .kitty-costumes * { animation: none !important; transition: none !important; }
+  .mr-bungles-glass { transform: none !important; }
+}
+
+.privacy-markdown { color: #292524; font-family: "DM Mono", ui-monospace, monospace; font-size: 0.86rem; line-height: 1.75; }
+.privacy-markdown h1 { margin: 0 0 1rem; font-family: "Fraunces", Georgia, serif; font-size: clamp(2rem, 6vw, 3.4rem); font-weight: 500; line-height: 1; letter-spacing: -0.03em; }
+.privacy-markdown h2 { margin: 2.2rem 0 .7rem; font-family: "Fraunces", Georgia, serif; font-size: 1.45rem; font-weight: 500; line-height: 1.15; }
+.privacy-markdown p, .privacy-markdown ul, .privacy-markdown ol { margin: .8rem 0; }
+.privacy-markdown ul, .privacy-markdown ol { padding-left: 1.35rem; }
+.privacy-markdown li { margin: .35rem 0; }
+.privacy-markdown a { color: inherit; text-decoration: underline; text-decoration-color: #D8AE37; text-underline-offset: .18em; }
+.privacy-markdown a:focus-visible { outline: 2px solid #D8AE37; outline-offset: 3px; }
+.privacy-markdown hr { margin: 2rem 0; border: 0; border-top: 1px solid #e7e5e4; }
+.privacy-markdown em { color: #57534e; }
