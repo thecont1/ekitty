@@ -41,7 +41,6 @@ export default function MrBungles({ digest, viewMode, darkMode, frozen, onShowMe
   const mounted = useRef(true);
   const noun = viewMode === "holdings" ? "holding" : "purchase";
   const displayed = busy || reply !== null || error !== null;
-  const noDirectives = !digest || digest.directives.length === 0;
   const empty = !digest || digest.targets.length === 0;
   const target = reply && digest ? digest.targets.find(t => t.id === reply.targetId) : undefined;
 
@@ -145,7 +144,7 @@ export default function MrBungles({ digest, viewMode, darkMode, frozen, onShowMe
         ref={triggerRef}
         type="button"
         aria-label={`Mr. Bungles, the Glass Kitty. Point to one ${noun}. Sends a small portfolio digest to the configured AI provider.`}
-        aria-disabled={busy || noDirectives}
+        aria-disabled={busy}
         aria-expanded={displayed}
         aria-controls="mr-bungles-utterance"
         title="Mr. Bungles, the Glass Kitty — sends a small portfolio digest to the configured AI provider."

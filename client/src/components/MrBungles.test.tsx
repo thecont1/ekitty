@@ -37,9 +37,9 @@ describe("Mr. Bungles trigger", () => {
     expect(holdings).toContain('aria-expanded="false"');
   });
 
-  it("stays findable but announces emptiness when there is nothing to point to", () => {
+  it("stays findable and operable when there is nothing to point to", () => {
     const markup = render("holdings", true);
-    expect(markup).toContain('aria-disabled="true"');
+    expect(markup).toContain('aria-disabled="false"');
     expect(markup).toContain("<button");
     expect(markup).toContain('data-empty="true"');
   });
