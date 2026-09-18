@@ -65,6 +65,12 @@ describe("Mr. Bungles trigger", () => {
     expect(markup).not.toContain("contenteditable");
   });
 
+  it("shows the digest disclosure beside the trigger until first use", () => {
+    const markup = render();
+    expect(markup).toContain("One click sends a small portfolio digest to the configured AI provider.");
+    expect(markup).toContain('href="/privacy"');
+  });
+
   it("speaks no disclaimer or retired signature in the utterance region", () => {
     const markup = render();
     expect(markup).not.toContain("points; you decide");

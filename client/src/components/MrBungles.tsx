@@ -32,6 +32,7 @@ export default function MrBungles({ digest, viewMode, darkMode, frozen, onShowMe
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [ignored, setIgnored] = useState(false);
+  const [disclosed, setDisclosed] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const pendingAbort = useRef<AbortController | null>(null);
@@ -94,6 +95,7 @@ export default function MrBungles({ digest, viewMode, darkMode, frozen, onShowMe
 
   const handleClick = () => {
     if (pendingAbort.current) return;
+    setDisclosed(true);
     setIgnored(false);
     armIdleTimer();
     if (!digest) {
@@ -154,6 +156,11 @@ export default function MrBungles({ digest, viewMode, darkMode, frozen, onShowMe
         <span aria-hidden="true" className="block h-[52px] w-11"><MrBunglesGlass darkMode={darkMode} /></span>
         <span aria-hidden="true" className={`font-mono text-[8px] leading-tight tracking-[.04em] ${darkMode ? "text-stone-400" : "text-stone-500"}`}>Mr. Bungles</span>
       </button>
+      {!disclosed && (
+        <p className={`absolute bottom-0 right-14 w-44 rounded-md border px-2.5 py-2 font-mono text-[9px] leading-[1.5] backdrop-blur ${theme.panel}`}>
+          One click sends a small portfolio digest to the configured AI provider. <a href="/privacy" className="underline decoration-[#D8AE37] underline-offset-2">Privacy policy</a>
+        </p>
+      )}
       <aside id="mr-bungles-utterance" hidden={!displayed} className={`absolute bottom-0 right-16 max-h-[min(60dvh,420px)] w-[min(336px,calc(100vw-90px))] overflow-auto rounded-lg border p-3 backdrop-blur ${theme.panel}`}>
         <div className="flex items-start justify-between gap-2">
           <p className={`min-w-0 break-words font-mono text-[10px] uppercase tracking-[.14em] ${theme.muted}`}>Mr. Bungles · {noun}{target?.purchaseDate ? ` · ${target.purchaseDate}` : ""}</p>

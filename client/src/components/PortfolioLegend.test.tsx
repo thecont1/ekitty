@@ -47,8 +47,9 @@ describe("PortfolioLegend copy", () => {
 
   it("carries the Mr. Bungles disclosure and advice disclaimer", () => {
     const markup = renderLegend(false);
-    expect(markup).toContain("Click Mr. Bungles to send a small portfolio digest to the configured AI provider. No conversation is opened.");
+    expect(markup).toContain("Click Mr. Bungles to send a small portfolio digest to your connected AI provider. No conversation is opened.");
     expect(markup).toContain("AI commentary is not personal financial advice; verify decisions with a qualified adviser.");
+    expect(markup).toContain('href="/privacy"');
   });
 
   it("Transactions view lists only purchase-scoped costumes — no Monopoly or Patchwork", () => {
