@@ -1,11 +1,12 @@
 import { mrBunglesDigestSchema, buildMrBunglesDirectives, MR_BUNGLES_MAX_BYTES, type MrBunglesDigest, type MrBunglesFacts, type MrBunglesTarget } from "@shared/mrBungles";
+import { DEFAULT_MARKET_PROFILE, type MarketProfile } from "@shared/marketProfiles";
 import type { PortfolioPoint } from "./portfolio";
 import { hasCompleteDayChange, portfolioShare, type PortfolioView } from "./portfolioCostumes";
 import type { VisualLens } from "./portfolioVisuals";
 
 export type MrBunglesScope = { includesEtfs: boolean; taxFilter: "all" | "highlight" | "isolate"; query: string };
 
-export function buildMrBunglesDigest(points: readonly PortfolioPoint[], view: PortfolioView, lens: VisualLens, scope: MrBunglesScope): MrBunglesDigest | null {
+export function buildMrBunglesDigest(points: readonly PortfolioPoint[], view: PortfolioView, lens: VisualLens, scope: MrBunglesScope, marketProfile: MarketProfile = DEFAULT_MARKET_PROFILE): MrBunglesDigest | null {
   const population = scope.includesEtfs ? [...points] : points.filter(point => !point.isETF);
   const query = scope.query.trim().toLocaleLowerCase();
   const visible = population.filter(point => (scope.taxFilter !== "isolate" || point.taxSensitive) && (!query || point.company.toLocaleLowerCase().includes(query)));
@@ -56,6 +57,7 @@ export function buildMrBunglesDigest(points: readonly PortfolioPoint[], view: Po
     version: 1,
     view,
     lens,
+    market: marketProfile,
     scope: { includesEtfs: scope.includesEtfs, taxFilter: scope.taxFilter, searchFiltered: !!query },
     population: population.length,
     visibleCount: visible.length,

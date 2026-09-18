@@ -475,7 +475,7 @@ describe("costume layers", () => {
     expect(point.taxSensitive).toBe(true);
     const withCostumes = renderToStaticMarkup(createElement(CatGlyph, glyphProps(point, ["wounded", "basket"])));
     const without = renderToStaticMarkup(createElement(CatGlyph, glyphProps(point, [])));
-    for (const markup of [withCostumes, without]) expect(markup).toContain('aria-label="Tax-loss eligible (held 330+ days)"');
+    for (const markup of [withCostumes, without]) expect(markup).toContain('aria-label="Loss-review flag (held 330+ days)"');
   });
 
   it("suppresses the legacy ETF badge only while the basket costume stands in for it", () => {

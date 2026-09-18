@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { formatMarketMoney, formatMarketPercent, isTaxReviewLoss } from "./marketProfiles";
 
 export const MR_BUNGLES_CACHE_MS = 60_000;
 export const MR_BUNGLES_MAX_BYTES = 32_768;
@@ -11,6 +12,13 @@ const daySchema = z.object({
   coveredLots: z.number().int().positive(),
   lotCount: z.number().int().positive(),
 }).strict().refine(day => day.coveredLots === day.lotCount, "Partial day coverage is unavailable");
+const marketSchema = z.object({
+  id: z.enum(["india", "us", "singapore", "uk"]),
+  label: z.string().min(1).max(80).regex(/^[^\u0000-\u001f\u007f]+$/),
+  locale: z.string().min(2).max(35).regex(/^[a-z]{2,3}(?:-[A-Za-z0-9]+)*$/),
+  currency: z.string().length(3).regex(/^[A-Z]{3}$/),
+  taxReviewAgeDays: z.number().int().positive().nullable(),
+}).strict();
 const targetSchema = z.object({
   id,
   company: label,
@@ -30,12 +38,12 @@ const targetSchema = z.object({
   if (target.pnl !== target.current - target.invested) ctx.addIssue({ code: "custom", message: "Inconsistent P&L" });
   if (target.invested <= 0 && target.pnlPercent !== undefined) ctx.addIssue({ code: "custom", message: "Return needs positive invested capital" });
   if (target.day && target.day.lotCount !== target.lotCount) ctx.addIssue({ code: "custom", message: "Incomplete target coverage" });
-  if (target.taxFlag !== (target.pnl < 0 && (target.ageDays ?? 0) >= 330)) ctx.addIssue({ code: "custom", message: "Inconsistent tax-review flag" });
 });
 export const mrBunglesFactsSchema = z.object({
   version: z.literal(1),
   view: z.enum(["holdings", "transactions"]),
   lens: z.enum(["portfolio-impact", "trade-quality", "capital-at-risk"]),
+  market: marketSchema,
   scope: z.object({ includesEtfs: z.boolean(), taxFilter: z.enum(["all", "highlight", "isolate"]), searchFiltered: z.boolean() }).strict(),
   population: z.number().int().nonnegative(),
   visibleCount: z.number().int().nonnegative(),
@@ -48,11 +56,11 @@ export type MrBunglesFacts = z.infer<typeof mrBunglesFactsSchema>;
 export type MrBunglesTarget = MrBunglesFacts["targets"][number];
 export type MrBunglesDirective = { targetId: string; reason: "concentration" | "purchase-size" | "tax-review" | "return" | "day-move"; text: string };
 
-function money(value: number) {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(value);
+function money(value: number, market: MrBunglesFacts["market"]) {
+  return formatMarketMoney(value, market, { price: true });
 }
-function percent(value: number) {
-  return `${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(value)}%`;
+function percent(value: number, market: MrBunglesFacts["market"]) {
+  return formatMarketPercent(value, market);
 }
 
 export function buildMrBunglesDirectives(facts: MrBunglesFacts): MrBunglesDirective[] {
@@ -64,26 +72,26 @@ export function buildMrBunglesDirectives(facts: MrBunglesFacts): MrBunglesDirect
       if (text.split(/\s+/).length <= 40) directives.push({ targetId: target.id, reason, text });
     };
     if (facts.quietTargetId === target.id) {
-      add('return', `The field is tolerable. This ${noun}'s return is ${percent(target.pnlPercent!)}. Keep that quiet curiosity under observation.`);
+      add('return', `The field is tolerable. This ${noun}'s return is ${percent(target.pnlPercent!, facts.market)}. Keep that quiet curiosity under observation.`);
     }
     if (facts.view === 'holdings' && target.sharePercent !== undefined && target.sharePercent >= 20) {
-      add('concentration', `That kitty occupies ${percent(target.sharePercent)} of this portfolio's current value. Review its weight before adding more.`);
+      add('concentration', `That kitty occupies ${percent(target.sharePercent, facts.market)} of this portfolio's current value. Review its weight before adding more.`);
     }
     if (facts.view === 'transactions' && target.investedSharePercent !== undefined && target.investedSharePercent >= 10) {
-      add('purchase-size', `This purchase accounts for ${percent(target.investedSharePercent)} of invested capital. Revisit the size of that decision.`);
+      add('purchase-size', `This purchase accounts for ${percent(target.investedSharePercent, facts.market)} of invested capital. Revisit the size of that decision.`);
     }
     if (target.taxFlag) {
-      add('tax-review', `This ${noun} carries a ${money(Math.abs(target.pnl))} loss and an age-based tax flag. Check the lot dates and tax rules.`);
+      add('tax-review', `This ${noun} carries a ${money(Math.abs(target.pnl), facts.market)} loss and an age-based tax flag. Check the lot dates and tax rules.`);
     } else if (target.pnl === 0) {
       add('return', `This ${noun} stands at break-even in the supplied marks. Inspect the capital tied up in it.`);
     } else {
-      const amount = target.pnlPercent === undefined ? money(Math.abs(target.pnl)) : percent(Math.abs(target.pnlPercent));
+      const amount = target.pnlPercent === undefined ? money(Math.abs(target.pnl), facts.market) : percent(Math.abs(target.pnlPercent), facts.market);
       add('return', target.pnl < 0
         ? `This ${noun} has lost ${amount} against its cost. Revisit the premise for keeping that kitty.`
         : `This ${noun} has gained ${amount} against its cost. Inspect what that winner now occupies.`);
     }
     if (target.day && Math.abs(target.day.percent) >= 2) {
-      add('day-move', `This ${noun} moved ${percent(target.day.percent)} against the supplied prior close. Inspect the move. Ignoring it changes nothing but who is surprised.`);
+      add('day-move', `This ${noun} moved ${percent(target.day.percent, facts.market)} against the supplied prior close. Inspect the move. Ignoring it changes nothing but who is surprised.`);
     }
   }
   return directives;
@@ -99,6 +107,7 @@ export const mrBunglesDigestSchema = mrBunglesFactsSchema.extend({ directives: z
   if (digest.totals.day && digest.targets.some(target => !target.day)) fail("Incomplete portfolio day coverage");
   if (digest.quietTargetId && (!ids.has(digest.quietTargetId) || digest.targets.some(target => target.pnlPercent === undefined || Math.abs(target.pnlPercent) > 5 || target.taxFlag || (target.day && Math.abs(target.day.percent) >= 2) || (digest.view === "holdings" ? target.sharePercent === undefined || target.sharePercent >= 20 : target.investedSharePercent === undefined || target.investedSharePercent >= 10)))) fail("Invalid quiet curiosity");
   for (const target of digest.targets) {
+    if (target.taxFlag !== isTaxReviewLoss(target.pnl, target.ageDays, digest.market)) fail("Inconsistent tax-review flag");
     if (digest.view === "transactions" && (target.lotCount !== 1 || target.sharePercent !== undefined)) fail("Transaction scope mismatch");
     if (digest.view === "holdings" && (target.purchaseDate !== undefined || target.investedSharePercent !== undefined)) fail("Holding scope mismatch");
     if (!digest.scope.includesEtfs && target.etf) fail("Hidden ETF target");

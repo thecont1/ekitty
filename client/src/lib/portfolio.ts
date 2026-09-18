@@ -3,6 +3,8 @@
  * is carried by the kitty field rather than a conventional dashboard.
  */
 
+import { DEFAULT_MARKET_PROFILE, formatMarketMoney, isTaxReviewLoss, type MarketProfile } from "@shared/marketProfiles";
+
 export type PortfolioLot = {
   id: string;
   company: string;
@@ -47,13 +49,17 @@ export type PortfolioStats = {
   companyDeltas: PortfolioPoint[];
 };
 
-const FORMATTED_NUMBER = /^[+-]?(?:₹|Rs\.?\s*)?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$/i;
-
 function parseCellNumber(value: string | undefined) {
   const raw = (value ?? "").trim();
-  if (!raw || !FORMATTED_NUMBER.test(raw)) return NaN;
-  const cleaned = raw.replace(/^(?:₹|Rs\.?\s*)/i, "").replace(/,/g, "");
-  const number = Number(cleaned);
+  const signed = raw.match(/^([+-]?)\s*(.*)$/);
+  if (!signed?.[2]) return NaN;
+  const unsigned = signed[2].replace(/^(?:[A-Za-z]{2,4}\.?|[^\s\w,.'’+\-])\s*/, "");
+  const grouped =
+    /^\d+(?:\.\d+)?$/.test(unsigned) ||
+    /^\d{1,3}(?:[, '’_]\d{3})+(?:\.\d+)?$/.test(unsigned) ||
+    /^\d{1,2}(?:,\d{2})*,\d{3}(?:\.\d+)?$/.test(unsigned);
+  if (!grouped) return NaN;
+  const number = Number(`${signed[1] === "-" ? "-" : ""}${unsigned.replace(/[, '’_]/g, "")}`);
   return Number.isFinite(number) ? number : NaN;
 }
 
@@ -208,7 +214,7 @@ export function ageInDays(date?: string) {
   return Math.max(0, Math.floor((Date.now() - parsed.getTime()) / 86_400_000));
 }
 
-function pointFromLots(id: string, company: string, lots: PortfolioLot[]): PortfolioPoint {
+function pointFromLots(id: string, company: string, lots: PortfolioLot[], marketProfile: MarketProfile): PortfolioPoint {
   const qty = lots.reduce((sum, lot) => sum + lot.buy_qty, 0);
   const investedValue = lots.reduce((sum, lot) => sum + lot.buy_qty * lot.avg_price, 0);
   const currentValue = lots.reduce((sum, lot) => sum + lot.buy_qty * lot.current_price, 0);
@@ -221,7 +227,7 @@ function pointFromLots(id: string, company: string, lots: PortfolioLot[]): Portf
   const datedLots = lots.filter((lot) => lot.buy_date).sort((a, b) => new Date(a.buy_date!).getTime() - new Date(b.buy_date!).getTime());
   const oldestDate = datedLots[0]?.buy_date;
   const ageDays = ageInDays(oldestDate);
-  const taxSensitive = pnl < 0 && (ageDays ?? 0) >= 330;
+  const taxSensitive = isTaxReviewLoss(pnl, ageDays, marketProfile);
   const isETF = lots.every((lot) => lot.isETF);
 
   return {
@@ -245,19 +251,19 @@ function pointFromLots(id: string, company: string, lots: PortfolioLot[]): Portf
   };
 }
 
-export function asTransactionPoints(lots: PortfolioLot[]) {
-  return lots.map((lot) => pointFromLots(lot.id, lot.company, [lot]));
+export function asTransactionPoints(lots: PortfolioLot[], marketProfile: MarketProfile = DEFAULT_MARKET_PROFILE) {
+  return lots.map((lot) => pointFromLots(lot.id, lot.company, [lot], marketProfile));
 }
 
-export function asHoldingPoints(lots: PortfolioLot[]) {
+export function asHoldingPoints(lots: PortfolioLot[], marketProfile: MarketProfile = DEFAULT_MARKET_PROFILE) {
   const grouped = new Map<string, PortfolioLot[]>();
   lots.forEach((lot) => grouped.set(lot.company, [...(grouped.get(lot.company) ?? []), lot]));
-  return Array.from(grouped.entries()).map(([company, companyLots]) => pointFromLots(`holding-${company}`, company, companyLots));
+  return Array.from(grouped.entries()).map(([company, companyLots]) => pointFromLots(`holding-${company}`, company, companyLots, marketProfile));
 }
 
-export function computePortfolioStats(lots: PortfolioLot[]): PortfolioStats {
-  const lotDeltas = asTransactionPoints(lots);
-  const companyDeltas = asHoldingPoints(lots);
+export function computePortfolioStats(lots: PortfolioLot[], marketProfile: MarketProfile = DEFAULT_MARKET_PROFILE): PortfolioStats {
+  const lotDeltas = asTransactionPoints(lots, marketProfile);
+  const companyDeltas = asHoldingPoints(lots, marketProfile);
   const totalInvestedValue = lotDeltas.reduce((sum, point) => sum + point.investedValue, 0);
   const totalCurrentValue = lotDeltas.reduce((sum, point) => sum + point.currentValue, 0);
   const totalUnrealizedPnl = totalCurrentValue - totalInvestedValue;
@@ -278,15 +284,10 @@ export function pointScaleValue(point: PortfolioPoint, metric: KittyScaleMetric)
   return Math.max(0, point.investedValue);
 }
 
-export function formatCurrency(value: number, compact = false) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    notation: compact ? "compact" : "standard",
-    maximumFractionDigits: compact ? 1 : 0,
-  }).format(value);
+export function formatCurrency(value: number, marketProfile: MarketProfile = DEFAULT_MARKET_PROFILE, compact = false) {
+  return formatMarketMoney(value, marketProfile, { compact });
 }
 
-export function formatPrice(value: number) {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(value);
+export function formatPrice(value: number, marketProfile: MarketProfile = DEFAULT_MARKET_PROFILE) {
+  return formatMarketMoney(value, marketProfile, { price: true });
 }
