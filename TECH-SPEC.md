@@ -169,6 +169,7 @@ This split is deliberate: financial math must be exact and regression-tested; th
 - **Timeline caps at a 24-month window** with right-anchored drag-zoom; older months remain reachable via navigation but never render simultaneously.
 - **Dev scripts assume Linux paths** (`scripts/*.mts`); they're migration artifacts from the original build environment, not part of the runtime.
 - **Map iterators need `Array.from`.** The TS target predates downlevel iteration; spread/`for…of` over `Map` iterators fails typecheck — collect with `Array.from(...)` instead.
+- **Do not exclude tests from `tsconfig.json`.** An excluded test opens in an IDE inferred project without `paths`, so imports such as `@shared/*` degrade to `any` and callbacks report `noImplicitAny`; keeping tests included makes editor diagnostics match `pnpm check`.
 - **Tailwind v4 `focus-visible:outline` never sets `outline-style`.** Use `focus-visible:outline-solid` for focus rings on non-`button`/`select`/`input` elements (the global rule in `index.css` covers only those three).
 - **Standalone SVG mounts need explicit size.** `PortfolioKittySvg` carries no width/height attributes; browser-default 300×150 overflows small wrappers — set `width:100%;height:100%` (or fixed dims) on the host.
 - **Guard stale async `finally` blocks by controller.** When a new request can start before an old one settles, compare `pendingAbort.current !== controller` inside `finally` so an old request can't clear the new one's busy state or timeout.
