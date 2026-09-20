@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import express from "express";
-import { MR_BUNGLES_CACHE_MS, MR_BUNGLES_MAX_BYTES, mrBunglesDigestSchema, type MrBunglesReply } from "../shared/mrBungles";
-import { MrBunglesUnavailableError, createMrBunglesProvider, type MrBunglesProvider } from "./mrBunglesProvider";
+import { MR_BUNGLES_CACHE_MS, MR_BUNGLES_ERRORS, MR_BUNGLES_MAX_BYTES, mrBunglesDigestSchema, type MrBunglesErrorCode, type MrBunglesReply } from "../shared/mrBungles";
+import { MrBunglesProviderError, MrBunglesUnavailableError, createMrBunglesProvider, type MrBunglesProvider } from "./mrBunglesProvider";
 
 const MR_BUNGLES_CACHE_ENTRIES = 64;
 const MR_BUNGLES_INFLIGHT_MAX = 4;
@@ -15,11 +15,10 @@ export function createMrBunglesRouter({ provider = createMrBunglesProvider(), no
   const router = express.Router();
 
   const sendProviderError = (res: express.Response, error: unknown) => {
-    if (error instanceof MrBunglesUnavailableError) {
-      res.status(503).json({ error: "Mr. Bungles is not configured on this server." });
-      return;
-    }
-    res.status(502).json({ error: "Mr. Bungles could not produce a grounded directive." });
+    const code: MrBunglesErrorCode = error instanceof MrBunglesUnavailableError ? "not_configured" : error instanceof MrBunglesProviderError ? error.code : "provider_unavailable";
+    if (code === "provider_rate_limited") res.set("Retry-After", "2");
+    const { status, message } = MR_BUNGLES_ERRORS[code];
+    res.status(status).json({ code, error: message });
   };
 
   router.use((req, res, next) => {
@@ -104,7 +103,7 @@ export function createMrBunglesRouter({ provider = createMrBunglesProvider(), no
       for (const directive of digest.directives) {
         if (directive.text === utterance && (targetId === undefined || directive.targetId < targetId)) targetId = directive.targetId;
       }
-      if (targetId === undefined) throw new Error("Mr. Bungles returned an ungrounded utterance.");
+      if (targetId === undefined) throw new MrBunglesProviderError("ungrounded_reply");
       const reply: MrBunglesReply = { targetId, utterance };
       if (cache.size >= MR_BUNGLES_CACHE_ENTRIES) {
         const oldest = cache.keys().next().value;

@@ -3,6 +3,20 @@ import { formatMarketMoney, formatMarketPercent, isTaxReviewLoss } from "./marke
 
 export const MR_BUNGLES_CACHE_MS = 60_000;
 export const MR_BUNGLES_MAX_BYTES = 32_768;
+export const MR_BUNGLES_PROVIDER_TIMEOUT_MS = 40_000;
+export const MR_BUNGLES_CLIENT_TIMEOUT_MS = 45_000;
+export const MR_BUNGLES_ERRORS = {
+  not_configured: { status: 503, message: "Mr. Bungles is not configured on this server." },
+  provider_auth: { status: 502, message: "The AI provider rejected this server's credentials or model access. The site owner needs to check the API key and permissions." },
+  provider_rate_limited: { status: 429, message: "The AI provider is busy or rate-limiting requests. Try again shortly." },
+  provider_timeout: { status: 504, message: "The AI provider took too long to reply. Try again shortly; the field still works." },
+  provider_unavailable: { status: 502, message: "The AI provider could not be reached or returned a server error. Try again shortly." },
+  provider_request: { status: 502, message: "The AI provider rejected this server's request. The site owner needs to check the model and endpoint configuration." },
+  provider_truncated: { status: 502, message: "The AI provider ran out of response space before finishing. No advice was shown. Try again." },
+  provider_invalid_response: { status: 502, message: "The AI provider returned an empty or unreadable reply. No advice was shown. Try again." },
+  ungrounded_reply: { status: 502, message: "The AI reply did not match the portfolio's verified facts, so Mr. Bungles withheld it. Try again." },
+} as const;
+export type MrBunglesErrorCode = keyof typeof MR_BUNGLES_ERRORS;
 const finite = z.number().finite();
 const label = z.string().min(1).max(160).regex(/^[^\u0000-\u001f\u007f]+$/);
 const id = z.string().min(1).max(320).regex(/^[^\u0000-\u001f\u007f]+$/);

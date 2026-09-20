@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import type { MrBunglesDigest } from "../../../shared/mrBungles";
+import { MR_BUNGLES_ERRORS, MR_BUNGLES_PROVIDER_TIMEOUT_MS, type MrBunglesDigest, type MrBunglesErrorCode } from "../../../shared/mrBungles";
 import { createMrBunglesRouter } from "../../../server/mrBungles";
-import { MrBunglesUnavailableError, createMrBunglesProvider, type MrBunglesProvider } from "../../../server/mrBunglesProvider";
+import { MrBunglesProviderError, MrBunglesUnavailableError, createMrBunglesProvider, type MrBunglesProvider } from "../../../server/mrBunglesProvider";
 import { MR_BUNGLES_SYSTEM_PROMPT, MR_BUNGLES_WIRE_PROMPT } from "../../../server/mr-bungles-prompt";
 import { buildMrBunglesDigest, type MrBunglesScope } from "./mrBunglesDigest";
 import { asHoldingPoints, type PortfolioLot } from "./portfolio";
@@ -113,8 +113,21 @@ describe("Mr. Bungles endpoint", () => {
       const res = await post(url, d);
       expect(res.status).toBe(502);
       const body = await res.json();
-      expect(body).toEqual({ error: "Mr. Bungles could not produce a grounded directive." });
+      expect(body).toEqual({ code: "ungrounded_reply", error: MR_BUNGLES_ERRORS.ungrounded_reply.message });
       expect(JSON.stringify(body)).not.toContain(utterance);
+    }
+  });
+
+  it("maps every typed provider error to its allowlisted status, code, and fixed message", async () => {
+    for (const [code, expected] of Object.entries(MR_BUNGLES_ERRORS)) {
+      const url = await start(createMrBunglesRouter({ provider: async () => { throw new MrBunglesProviderError(code as MrBunglesErrorCode); } }));
+      const res = await post(url, digest());
+      expect(res.status).toBe(expected.status);
+      const body = await res.json();
+      expect(body).toEqual({ code, error: expected.message });
+      expect(JSON.stringify(body)).not.toContain("Bearer");
+      expect(JSON.stringify(body)).not.toContain("k-test");
+      if (code === "provider_rate_limited") expect(res.headers.get("retry-after")).toBe("2");
     }
   });
 
@@ -122,7 +135,16 @@ describe("Mr. Bungles endpoint", () => {
     const url = await start(createMrBunglesRouter({ provider: createMrBunglesProvider({}) }));
     const res = await post(url, digest());
     expect(res.status).toBe(503);
-    expect(await res.json()).toEqual({ error: "Mr. Bungles is not configured on this server." });
+    expect(await res.json()).toEqual({ code: "not_configured", error: MR_BUNGLES_ERRORS.not_configured.message });
+  });
+
+  it("collapses unexpected provider failures to provider_unavailable without leaking internals", async () => {
+    const url = await start(createMrBunglesRouter({ provider: async () => { throw new Error("upstream dumped secret-token-xyz"); } }));
+    const res = await post(url, digest());
+    expect(res.status).toBe(502);
+    const body = await res.json();
+    expect(body).toEqual({ code: "provider_unavailable", error: MR_BUNGLES_ERRORS.provider_unavailable.message });
+    expect(JSON.stringify(body)).not.toContain("secret-token-xyz");
   });
 
   it("deduplicates concurrent identical payloads into one provider call", async () => {
@@ -185,14 +207,28 @@ describe("Mr. Bungles provider transport", () => {
   const okResponse = (text: string) => new Response(JSON.stringify({ choices: [{ message: { content: text } }] }), { status: 200, headers: { "Content-Type": "application/json" } });
   const env = { LLM_PROVIDER: "incumbent", MR_BUNGLES_API_KEY: "k-test", MR_BUNGLES_MODEL: "m-test", MR_BUNGLES_BASE_URL: "https://api.openai.com/v1" };
 
-  it("defaults to Morph on morph-kimik3 when LLM_PROVIDER is unset", async () => {
+  it("defaults to Morph on morph-kimik3 with low reasoning effort and a 1600 token cap", async () => {
     const fetcher = vi.fn(async () => okResponse("grounded text"));
     const provider = createMrBunglesProvider({ MORPH_API_KEY: "k-morph" }, fetcher as unknown as typeof fetch);
     await expect(provider(digest())).resolves.toBe("grounded text");
     const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://api.morphllm.com/v1/chat/completions");
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer k-morph");
-    expect(JSON.parse(init.body as string).model).toBe("morph-kimik3");
+    const payload = JSON.parse(init.body as string);
+    expect(payload.model).toBe("morph-kimik3");
+    expect(payload.reasoning_effort).toBe("low");
+    expect(payload.max_completion_tokens).toBe(1600);
+  });
+
+  it("keeps the 800 token cap and no reasoning effort for other models", async () => {
+    const fetcher = vi.fn(async () => okResponse("grounded text"));
+    for (const providerEnv of [env, { MORPH_API_KEY: "k-morph", MORPH_MODEL: "morph-other" }]) {
+      fetcher.mockClear();
+      await expect(createMrBunglesProvider(providerEnv, fetcher as unknown as typeof fetch)(digest())).resolves.toBe("grounded text");
+      const payload = JSON.parse((fetcher.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+      expect(payload.max_completion_tokens).toBe(800);
+      expect(payload).not.toHaveProperty("reasoning_effort");
+    }
   });
 
   it("posts the digest with bearer auth and both system prompts verbatim", async () => {
@@ -232,6 +268,67 @@ describe("Mr. Bungles provider transport", () => {
       await expect(createMrBunglesProvider({ ...env, MR_BUNGLES_BASE_URL: base }, fetcher as unknown as typeof fetch)(digest())).rejects.toBeInstanceOf(MrBunglesUnavailableError);
     }
     expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("classifies non-2xx statuses into typed provider errors", async () => {
+    const cases: [number, MrBunglesErrorCode][] = [
+      [401, "provider_auth"],
+      [403, "provider_auth"],
+      [400, "provider_request"],
+      [404, "provider_request"],
+      [500, "provider_unavailable"],
+      [503, "provider_unavailable"],
+    ];
+    for (const [status, code] of cases) {
+      const fetcher = vi.fn(async () => new Response(`upstream-${status}-secret`, { status }));
+      await expect(createMrBunglesProvider(env, fetcher as unknown as typeof fetch)(digest())).rejects.toMatchObject({ name: "MrBunglesProviderError", code, message: MR_BUNGLES_ERRORS[code].message });
+    }
+  });
+
+  it("retries a 429 once on the same signal, cancels the first body, then reports rate limiting", async () => {
+    const first = new Response("rate limited", { status: 429 });
+    const cancel = vi.spyOn(first.body!, "cancel");
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(new Response("still limited", { status: 429 }));
+    await expect(createMrBunglesProvider(env, fetcher as unknown as typeof fetch)(digest())).rejects.toMatchObject({ name: "MrBunglesProviderError", code: "provider_rate_limited" });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(cancel).toHaveBeenCalledTimes(1);
+    const signal0 = (fetcher.mock.calls[0] as unknown as [string, RequestInit])[1].signal;
+    const signal1 = (fetcher.mock.calls[1] as unknown as [string, RequestInit])[1].signal;
+    expect(signal0).toBe(signal1);
+    expect(signal0).toBeInstanceOf(AbortSignal);
+  });
+
+  it("honours the shared provider deadline while backing off after a 429", async () => {
+    const controller = new AbortController();
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout").mockReturnValue(controller.signal);
+    try {
+      const first = new Response("rate limited", { status: 429 });
+      const cancel = vi.spyOn(first.body!, "cancel");
+      const fetcher = vi.fn(async () => first);
+      const pending = createMrBunglesProvider(env, fetcher as unknown as typeof fetch)(digest());
+      const assertion = expect(pending).rejects.toMatchObject({ name: "MrBunglesProviderError", code: "provider_timeout" });
+      await vi.waitFor(() => expect(cancel).toHaveBeenCalledTimes(1));
+      controller.abort(new DOMException("timeout", "TimeoutError"));
+      await assertion;
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      expect(timeoutSpy).toHaveBeenCalledWith(MR_BUNGLES_PROVIDER_TIMEOUT_MS);
+    } finally {
+      timeoutSpy.mockRestore();
+    }
+  });
+
+  it("maps transport timeouts and unreachable hosts to typed errors", async () => {
+    const timeout = vi.fn(async () => { throw new DOMException("The operation timed out.", "TimeoutError"); });
+    await expect(createMrBunglesProvider(env, timeout as unknown as typeof fetch)(digest())).rejects.toMatchObject({ name: "MrBunglesProviderError", code: "provider_timeout" });
+    const unreachable = vi.fn(async () => { throw new TypeError("fetch failed"); });
+    await expect(createMrBunglesProvider(env, unreachable as unknown as typeof fetch)(digest())).rejects.toMatchObject({ name: "MrBunglesProviderError", code: "provider_unavailable" });
+  });
+
+  it("rejects a truncated completion even when the message content is null", async () => {
+    const truncated = vi.fn(async () => new Response(JSON.stringify({ choices: [{ finish_reason: "length", message: { content: null } }] }), { status: 200 }));
+    await expect(createMrBunglesProvider(env, truncated as unknown as typeof fetch)(digest())).rejects.toMatchObject({ name: "MrBunglesProviderError", code: "provider_truncated" });
   });
 
   it("rejects non-2xx responses, malformed payloads, and oversized bodies", async () => {
