@@ -20,10 +20,10 @@ export default function PortfolioHeader({ stats, hasPortfolio, darkMode, marketP
   const investedClass = darkMode ? "text-stone-100" : "text-stone-900";
 
   return (
-    <header id="ekitty-header" className={darkMode ? "fixed right-24 top-3 z-[60] w-[min(288px,calc(100vw-7rem))] rounded-2xl bg-[#101617] px-3 py-2.5 text-stone-100" : "fixed right-24 top-3 z-[60] w-[min(288px,calc(100vw-7rem))] rounded-2xl bg-[#faf9f5] px-3 py-2.5 text-stone-900"}>
+    <header id="ekitty-header" className={darkMode ? "portfolio-overlay-column fixed top-3 z-[60] rounded-2xl bg-[#101617] px-3 py-2.5 text-stone-100" : "portfolio-overlay-column fixed top-3 z-[60] rounded-2xl bg-[#faf9f5] px-3 py-2.5 text-stone-900"}>
       <div className="flex items-center gap-1.5">
         <PortfolioKittySvg stroke={darkMode ? "#ff8a8a" : "#c52222"} fill="transparent" fillOpacity={0} strokeWidth={2.5} className="h-11 w-11 shrink-0" />
-        <h1 className="font-serif text-[18px] font-medium leading-none tracking-tight">ekitty purrrtfolio</h1>
+        <h1 className="min-w-0 font-serif text-[18px] font-medium leading-none tracking-tight">ekitty purrrtfolio</h1>
       </div>
       {hasPortfolio && (
         <button

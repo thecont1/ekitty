@@ -53,6 +53,33 @@ describe("Mr. Bungles trigger", () => {
     expect(markup).toContain("#c78ca1");
   });
 
+  it("scales the trigger to 96x128 with an 88x104 glass figure, halo, and pink horns", () => {
+    const markup = render();
+    expect(markup).toContain("h-32 w-24");
+    expect(markup).toContain("h-[104px] w-[88px]");
+    expect(markup).toContain("text-[10px]");
+    expect(markup).toContain('data-ornament="glass-halo"');
+    expect(markup).toContain('data-ornament="pink-horns"');
+    expect(markup).toContain("#ff1493");
+    expect(markup).not.toContain('fill="#D8AE37"');
+  });
+
+  it("backs the mirrored glass kitty with a shiny blue mirror and keeps the flip off the text", () => {
+    const markup = render();
+    expect(markup).toContain('data-ornament="blue-mirror"');
+    expect(markup).toContain('data-art-mirrored="true"');
+    expect(markup.match(/scaleX\(-1\)/g)).toHaveLength(1);
+    expect(markup).toContain('id="mr-bungles-mirror-');
+    expect(markup).toContain('fill="url(#mr-bungles-mirror-');
+    expect(markup).toContain('-rim"');
+    expect(markup).toContain('data-ornament="glass-halo"');
+    expect(markup).toContain('data-ornament="pink-horns"');
+    expect(markup).not.toContain('fill="#D8AE37"');
+    expect(markup).not.toContain('stopColor="#D8AE37"');
+    const label = markup.slice(markup.lastIndexOf("Mr. Bungles</span>") - 220);
+    expect(label).not.toContain("scaleX");
+  });
+
   it("mounts exactly one polite live region outside the hidden utterance panel", () => {
     const markup = render();
     expect(markup.match(/role="status"/g)).toHaveLength(1);

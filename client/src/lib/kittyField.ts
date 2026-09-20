@@ -65,6 +65,28 @@ export const SEPARATION_FLOOR_PX = 6;
 /** Margin (px) added around measured UI exclusion zones. */
 export const ZONE_MARGIN_PX = 12;
 
+export const FIELD_ICON_LANE_PX = 112;
+
+export function fieldViewportWidth(viewportWidth: number) {
+  return Math.max(1, viewportWidth - FIELD_ICON_LANE_PX);
+}
+
+export function constrainFieldNodeX(node: FieldNode, radius: number, width: number) {
+  const margin = Math.min(Math.max(0, radius), width / 2);
+  const x = Math.max(margin, Math.min(width - margin, node.x));
+  if (x !== node.x) node.vx = 0;
+  node.x = x;
+}
+
+export function screenZoneToWorld(zone: ExclusionZone, camera: { x: number; y: number; scale: number }, scrollY: number): ExclusionZone {
+  return {
+    left: (zone.left - camera.x) / camera.scale,
+    top: (zone.top - camera.y + scrollY) / camera.scale,
+    right: (zone.right - camera.x) / camera.scale,
+    bottom: (zone.bottom - camera.y + scrollY) / camera.scale,
+  };
+}
+
 /** Collision radius of one kitty for a rendered box edge of `size` px. */
 export function kittyCollisionRadius(size: number) {
   return (size * KITTY_HITBOX_WIDTH_RATIO) / 2;

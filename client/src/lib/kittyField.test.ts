@@ -4,16 +4,20 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { CatGlyph, clampCardLeft, closeTopOverlay, readShowHalos, writeShowHalos } from "../pages/Home";
 import PortfolioKittySvg from "../components/PortfolioKittySvg";
 import {
+  FIELD_ICON_LANE_PX,
   KITTY_HITBOX_WIDTH_RATIO,
   SEPARATION_FLOOR_PX,
   ZONE_MARGIN_PX,
   FIELD_MAX_ACTIVE_MS,
   FIELD_QUIET_MS,
   advanceFieldRest,
+  constrainFieldNodeX,
   desiredSeparation,
+  fieldViewportWidth,
   gravityBandNorms,
   kittyCollisionRadius,
   pairwiseClearance,
+  screenZoneToWorld,
   separatePairwise,
   settleFieldNodes,
   zoneRepulsion,
@@ -86,6 +90,64 @@ describe("field sleep controller", () => {
       { x: 10, y: 21, vx: 0, vy: 0 },
       { x: 101, y: 200, vx: 0, vy: 0 },
     ]);
+  });
+});
+
+describe("permanent icon-lane bounds", () => {
+  it("carves the fixed 112px rail out of the viewport at every width", () => {
+    expect(FIELD_ICON_LANE_PX).toBe(112);
+    expect(fieldViewportWidth(320)).toBe(208);
+    expect(fieldViewportWidth(768)).toBe(656);
+    expect(fieldViewportWidth(1440)).toBe(1328);
+    expect(fieldViewportWidth(0)).toBe(1);
+  });
+
+  it("clamps nodes inside the visible field by their visual radius", () => {
+    for (const viewport of [320, 768, 1440]) {
+      const width = fieldViewportWidth(viewport);
+      const radius = 140 * 0.65 + 4;
+      const node: FieldNode = { x: width - 5, y: 300, vx: 2.5, vy: -1 };
+      constrainFieldNodeX(node, radius, width);
+      expect(node.x).toBe(width - radius);
+      expect(node.vx).toBe(0);
+      expect(node.vy).toBe(-1);
+      const left: FieldNode = { x: -50, y: 300, vx: -3, vy: 0 };
+      constrainFieldNodeX(left, radius, width);
+      expect(left.x).toBe(radius);
+      expect(left.vx).toBe(0);
+    }
+  });
+
+  it("preserves horizontal velocity when the node is already inside the bound", () => {
+    const node: FieldNode = { x: 400, y: 300, vx: 1.25, vy: 0.5 };
+    constrainFieldNodeX(node, 95, 1328);
+    expect(node.x).toBe(400);
+    expect(node.vx).toBe(1.25);
+  });
+
+  it("pins an oversized kitty to the field midpoint instead of overflowing", () => {
+    const node: FieldNode = { x: 40, y: 300, vx: -1, vy: 0 };
+    constrainFieldNodeX(node, 500, 208);
+    expect(node.x).toBe(104);
+    expect(node.vx).toBe(0);
+  });
+
+  it("composes with settleFieldNodes for the frozen and sleep paths", () => {
+    const width = fieldViewportWidth(320);
+    const nodes: FieldNode[] = [{ x: width - 4, y: 700.6, vx: 3, vy: 2 }];
+    settleFieldNodes(nodes, { width, height: 1998, radiusFor: () => kittyCollisionRadius(140) });
+    expect(nodes[0].x).toBe(width - kittyCollisionRadius(140));
+    const visualRadius = 140 * 0.65 + 4;
+    constrainFieldNodeX(nodes[0], visualRadius, width);
+    expect(nodes[0].x).toBe(width - visualRadius);
+    expect(nodes[0].vx).toBe(0);
+    expect(nodes[0].vy).toBe(0);
+  });
+
+  it("converts screen zones to world space through pan, zoom, and scroll", () => {
+    const zone = { left: 100, top: 60, right: 200, bottom: 160 };
+    expect(screenZoneToWorld(zone, { x: 20, y: 10, scale: 0.5 }, 30)).toEqual({ left: 160, top: 160, right: 360, bottom: 360 });
+    expect(screenZoneToWorld(zone, { x: 20, y: 10, scale: 1 }, 30)).toEqual({ left: 80, top: 80, right: 180, bottom: 180 });
   });
 });
 
@@ -451,6 +513,9 @@ describe("costume layers", () => {
     expect(markup).toContain('data-costume="wounded"');
     expect(markup).toContain('data-costume="basket"');
     expect(markup).not.toContain("#D8AE37");
+    expect(markup).toContain('width="60"');
+    expect(markup).toContain('data-bandage-cross="true"');
+    expect(markup).toContain('fill="#c52222"');
   });
 
   it("renders no layer group at all when the costume list is empty", () => {

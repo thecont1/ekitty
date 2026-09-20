@@ -6,7 +6,7 @@ export default function KittyCostumeLayers({ layers, darkMode = false }: { layer
   const ink = darkMode ? "#d8e1df" : "#353b38";
   const brass = darkMode ? "#d79b79" : "#9b5939";
   const art: Record<CostumeId, ReactNode> = {
-    wounded: <g transform="rotate(-14 90 43)"><rect x="70" y="36" width="38" height="14" rx="4" fill={paper} /><path d="M82 37v12m14-12v12M75 42h2m25 0h2" /></g>,
+    wounded: <g transform="rotate(-14 90 43)"><rect x="60" y="32" width="60" height="22" rx="5" fill="#fcfaf4" /><path d="M77 34v18m26-18v18M66 39h3m-3 8h3m43-8h3m-3 8h3" /><path data-bandage-cross="true" d="M87 36h6v5h5v6h-5v5h-6v-5h-5v-6h5z" fill="#c52222" stroke="none" /></g>,
     monopoly: <><path d="M70 31l-3-22 37-2 4 23M60 33q26 5 56-3" fill={ink} /><path d="M69 25l37-2" stroke={brass} /><path d="M60 125l12-7 9 29-15 7-8-7m71-29l9 15-7 21-17-8 6-25" fill="#274e3e" fillOpacity=".7" /><path d="M67 124l8 18m48-18l-3 18" /></>,
     firefighter: <><path d="M61 124l14-6 8 35-21 3-5-13m65-24l11 6 5 21-22 7" fill="#ba5246" fillOpacity=".8" /><path d="M61 143l18-3m39 0l18 3" stroke={paper} strokeWidth="4" /><path d="M65 27q18-15 38-5l6 9-45 5z" fill="#ba5246" /></>,
     parachute: <><path d="M53 29q36-36 75 0-36-13-75 0z" fill={paper} /><path d="M53 29l17 44m58-44l-17 43M76 22q0-9 13-17 17 9 17 17" /></>,
