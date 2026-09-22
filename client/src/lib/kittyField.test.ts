@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { CatGlyph, clampCardLeft, closeTopOverlay, readShowHalos, writeShowHalos } from "../pages/Home";
+import { CatGlyph } from "../pages/Home";
+import { clampCardLeft, closeTopOverlay, readShowHalos, writeShowHalos } from "./portfolioOverlays";
 import PortfolioKittySvg from "../components/PortfolioKittySvg";
 import {
   FIELD_ICON_LANE_PX,
